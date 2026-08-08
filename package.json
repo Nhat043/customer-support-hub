@@ -1,0 +1,27 @@
+{
+  "name": "new-project",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.13.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "prisma:migrate:create": "prisma migrate dev --create-only --schema prisma/schema.prisma",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma",
+    "db:seed": "pnpm --filter @new-project/api db:seed",
+    "test": "pnpm --filter @new-project/api test",
+    "prisma:studio": "prisma studio"
+  },
+  "devDependencies": {
+    "@prisma/client": "6.19.3",
+    "prettier": "^3.3.3",
+    "prisma": "^6.12.0",
+    "turbo": "^2.5.8",
+    "typescript": "^5.8.3"
+  }
+}

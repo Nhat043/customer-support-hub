@@ -1,0 +1,121 @@
+name: Deploy To GCE
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional immutable image tag. Defaults to the triggering commit SHA.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-gce
+  cancel-in-progress: false
+
+jobs:
+  safety-check:
+    name: Confirm deployment is enabled
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report deployment gate
+        run: |
+          if [ "${{ vars.ENABLE_GCE_DEPLOY }}" != "true" ]; then
+            echo "Deployment is disabled. Set repository variable ENABLE_GCE_DEPLOY=true only after the personal GitHub and GCP setup is reviewed."
+            exit 1
+          fi
+
+  deploy:
+    name: Build, publish, and release
+    needs: safety-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: production
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+      GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
+      GCE_INSTANCE: ${{ vars.GCE_INSTANCE }}
+      GCE_ZONE: ${{ vars.GCE_ZONE }}
+      PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        run: |
+          for variable in GCP_PROJECT_ID GAR_LOCATION GAR_REPOSITORY GCE_INSTANCE GCE_ZONE PUBLIC_API_BASE_URL; do
+            if [ -z "${!variable}" ]; then
+              echo "Missing required GitHub Actions variable: ${variable}"
+              exit 1
+            fi
+          done
+
+          if ! [[ "$IMAGE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "image_tag may contain only letters, numbers, dots, underscores, and hyphens."
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Artifact Registry authentication
+        run: gcloud auth configure-docker "${GAR_LOCATION}-docker.pkg.dev" --quiet
+
+      - name: Build and publish API image
+        env:
+          API_IMAGE: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/workflow-platform-api:${{ inputs.image_tag || github.sha }}
+        run: |
+          docker build --file apps/api/Dockerfile --tag "$API_IMAGE" .
+          docker push "$API_IMAGE"
+
+      - name: Build and publish web image
+        env:
+          WEB_IMAGE: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}/workflow-platform-web:${{ inputs.image_tag || github.sha }}
+        run: |
+          docker build \
+            --file apps/web/Dockerfile \
+            --build-arg "NEXT_PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL}" \
+            --tag "$WEB_IMAGE" \
+            .
+          docker push "$WEB_IMAGE"
+
+      - name: Release images on GCE
+        env:
+          REGISTRY: ${{ vars.GAR_LOCATION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GAR_REPOSITORY }}
+        run: |
+          API_IMAGE="${REGISTRY}/workflow-platform-api:${IMAGE_TAG}"
+          WEB_IMAGE="${REGISTRY}/workflow-platform-web:${IMAGE_TAG}"
+
+          gcloud compute scp \
+            --quiet \
+            --zone "$GCE_ZONE" \
+            deploy/gce/docker-compose.production.yml \
+            "${GCE_INSTANCE}:/tmp/workflow-platform-compose.yml"
+
+          gcloud compute ssh \
+            --quiet \
+            --zone "$GCE_ZONE" \
+            "$GCE_INSTANCE" \
+            --command "set -eu
+              test -f /etc/workflow-platform/api.env
+              install -d -m 0750 \$HOME/workflow-platform
+              install -m 0644 /tmp/workflow-platform-compose.yml \$HOME/workflow-platform/docker-compose.production.yml
+              docker pull '${API_IMAGE}'
+              docker pull '${WEB_IMAGE}'
+              docker run --rm --env-file /etc/workflow-platform/api.env '${API_IMAGE}' /app/node_modules/.bin/prisma migrate deploy --schema /app/prisma/schema.prisma
+              cd \$HOME/workflow-platform
+              API_IMAGE='${API_IMAGE}' WEB_IMAGE='${WEB_IMAGE}' docker compose -f docker-compose.production.yml up -d --remove-orphans
+              docker image prune --force"

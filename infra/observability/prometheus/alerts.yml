@@ -1,0 +1,21 @@
+groups:
+  - name: workflow-platform-api
+    rules:
+      - alert: HighHttpServerErrorRate
+        expr: |
+          sum(rate(workflow_platform_http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(workflow_platform_http_requests_total[5m])), 1) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: HTTP 5xx rate is above 5 percent
+
+      - alert: AgentRunFailuresDetected
+        expr: increase(workflow_platform_agent_runs_total{status="FAILED"}[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Agent runs have failed in the last 10 minutes
