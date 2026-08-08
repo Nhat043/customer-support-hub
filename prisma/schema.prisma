@@ -218,9 +218,27 @@ model User {
   uploadedFiles       Attachment[]       @relation("UploadedBy")
   actorWorkflowEvents WorkflowEvent[]
   memoryChunks        AgentMemoryChunk[] @relation("MemoryOwner")
+  passwordResetOtps   PasswordResetOtp[]
 
   @@index([role])
   @@index([status])
+}
+
+model PasswordResetOtp {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  otpHash        String
+  resetTokenHash String?  @unique
+  attempts       Int      @default(0)
+  expiresAt      DateTime
+  verifiedAt     DateTime?
+  consumedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model Session {

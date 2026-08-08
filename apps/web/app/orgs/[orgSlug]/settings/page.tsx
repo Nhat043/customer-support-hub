@@ -65,7 +65,7 @@ export default function OrgSettingsPage() {
       });
       setOrganizationName("");
       session.activeOrganizationSlug = organization.slug;
-      sessionStorage.setItem("new-project.session", JSON.stringify(session));
+      sessionStorage.setItem("customer-support-hub.session", JSON.stringify(session));
       router.push(`/orgs/${organization.slug}/settings`);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Could not create organization");

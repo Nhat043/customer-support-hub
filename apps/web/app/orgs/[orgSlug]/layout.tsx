@@ -44,7 +44,7 @@ export default function OrgLayout({
               </span>
             </Link>
             <span className="app-role-label">
-              {role === "OWNER" ? "Workspace owner" : role ? `${role.toLowerCase()} role` : "Workspace"}
+              {role === "OWNER" ? "Workspace owner" : role ? `${role.charAt(0)}${role.slice(1).toLowerCase()}` : "Workspace"}
             </span>
           </div>
           <nav className="app-navigation" aria-label="Workspace navigation">

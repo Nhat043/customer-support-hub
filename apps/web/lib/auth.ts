@@ -12,7 +12,7 @@ export type StoredSession = {
   };
 };
 
-const SESSION_KEY = "new-project.session";
+const SESSION_KEY = "customer-support-hub.session";
 
 export function getSession(): StoredSession | null {
   if (typeof window === "undefined") return null;

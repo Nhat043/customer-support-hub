@@ -15,7 +15,22 @@ type WorkflowItem = {
   createdAt: string;
 };
 
-const statuses = ["NEW", "TRIAGE", "IN_PROGRESS", "WAITING", "RESOLVED", "CLOSED"];
+const statusOptions = [
+  { value: "NEW", label: "New" },
+  { value: "TRIAGE", label: "Needs review" },
+  { value: "IN_PROGRESS", label: "In progress" },
+  { value: "WAITING", label: "Waiting for customer" },
+  { value: "RESOLVED", label: "Resolved" },
+  { value: "CLOSED", label: "Closed" },
+];
+
+function readableLabel(value: string) {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 export default function WorkflowItemsPage() {
   const params = useParams<{ orgSlug: string }>();
@@ -95,19 +110,20 @@ export default function WorkflowItemsPage() {
       <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <div className="badge">Workflow items</div>
-          <h2>{orgSlug}</h2>
+          <div className="badge">Customer requests</div>
+          <h2>Support queue</h2>
+          <p className="muted">Create a request, keep its status updated, and resolve it with your team.</p>
         </div>
       </div>
 
       {canEdit ? <form className="card grid" onSubmit={createItem} style={{ marginTop: 20 }}>
         <div>
-          <div className="badge">New customer request</div>
-          <h3 style={{ marginBottom: 0 }}>Add a request</h3>
+          <div className="badge">Step 1</div>
+          <h3 style={{ marginBottom: 0 }}>Log a customer request</h3>
         </div>
         <input
           className="input"
-          placeholder="Customer request title"
+          placeholder="Short summary, e.g. Customer has not received an order"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           minLength={2}
@@ -115,12 +131,12 @@ export default function WorkflowItemsPage() {
         />
         <textarea
           className="textarea"
-          placeholder="Customer details or issue"
+          placeholder="Add the customer details, issue, and information your team needs"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
         />
         <button className="btn primary" disabled={loading} type="submit">
-          {loading ? "Creating..." : "Create request"}
+          {loading ? "Creating..." : "Add to support queue"}
         </button>
       </form> : null}
 
@@ -132,7 +148,7 @@ export default function WorkflowItemsPage() {
             <Link href={`/orgs/${orgSlug}/workflow-items/${item.id}`}>
               <strong>{item.title}</strong>
             </Link>
-            <p className="muted">{item.description ?? "No description"}</p>
+            <p className="muted">{item.description ?? "No details added yet."}</p>
             <div className="row">
               {canEdit ? <select
                 className="select"
@@ -140,26 +156,28 @@ export default function WorkflowItemsPage() {
                 onChange={(event) => void updateStatus(item.id, event.target.value)}
                 style={{ maxWidth: 180 }}
               >
-                {statuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
+                {statusOptions.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
                   </option>
                 ))}
-              </select> : <span className="badge">{item.status}</span>}
-              <span className="badge">{item.priority}</span>
+              </select> : <span className="badge">{readableLabel(item.status)}</span>}
+              <span className="badge">{readableLabel(item.priority)} priority</span>
             </div>
           </article>
         ))}
       </div>
       </div>
       <aside className="card">
-        <div className="badge">Customer request queue</div>
-        <h3>Shared team context</h3>
+        <div className="badge">How this works</div>
+        <h3>One shared queue for your team</h3>
         <p className="muted">
-          Requests are shared only with people in this company workspace. Your role controls
-          whether you can read, create, or update them.
+          Add every customer issue here. Team members can update its status as they investigate,
+          wait for the customer, resolve, or close the request.
         </p>
-        <p className="muted">Items loaded: {items.length}</p>
+        <p className="muted">
+          {items.length === 1 ? "1 request in this queue." : `${items.length} requests in this queue.`}
+        </p>
       </aside>
     </section>
   );

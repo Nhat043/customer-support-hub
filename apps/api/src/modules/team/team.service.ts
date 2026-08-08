@@ -6,13 +6,17 @@ import {
 } from "@nestjs/common";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { EmailService } from "../../infrastructure/email/email.service";
 import type { MembershipRoleValue } from "../../common/decorators/roles.decorator";
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class TeamService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   async listMembers(organizationId: string) {
     return this.prisma.membership.findMany({
@@ -99,16 +103,35 @@ export class TeamService {
       return created;
     });
 
+    const organization = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: input.organizationId },
+      select: { name: true },
+    });
+    const delivery = await this.emailService.sendTeamInvitation({
+      recipient: email,
+      organizationName: organization.name,
+      role: input.role,
+      token,
+      expiresAt,
+    });
+
     return {
       ...invitation,
-      token,
+      delivery,
+      // The authenticated inviter can copy this only when local SMTP is unavailable.
+      manualInvitationToken: delivery.sent ? undefined : token,
     };
   }
 
   async previewInvitation(token: string) {
     const invitation = await this.findPendingInvitation(token);
+    const account = await this.prisma.user.findUnique({
+      where: { email: invitation.email },
+      select: { id: true },
+    });
     return {
       email: invitation.email,
+      hasAccount: Boolean(account),
       role: invitation.role,
       expiresAt: invitation.expiresAt,
       organization: invitation.organization,

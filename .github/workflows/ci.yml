@@ -49,7 +49,7 @@ jobs:
         run: pnpm lint
 
       - name: Run API unit tests and enforce coverage
-        run: pnpm --filter @new-project/api test:coverage
+        run: pnpm --filter @customer-support-hub/api test:coverage
 
       - name: Build monorepo
         run: pnpm build

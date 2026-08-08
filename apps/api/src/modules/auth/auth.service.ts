@@ -13,9 +13,19 @@ import {
   UserStatus,
 } from "../../../node_modules/.prisma/client";
 import * as bcrypt from "bcryptjs";
-import { randomUUID, createHash, createHmac } from "node:crypto";
+import { randomUUID, randomBytes, randomInt, createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
-import { LoginDto, RegisterDto } from "./dto/auth.dto";
+import { EmailService } from "../../infrastructure/email/email.service";
+import {
+  ConfirmPasswordResetDto,
+  LoginDto,
+  RegisterDto,
+  RequestPasswordResetDto,
+  VerifyPasswordResetOtpDto,
+} from "./dto/auth.dto";
+
+const PASSWORD_RESET_OTP_TTL_MS = 10 * 60 * 1000;
+const PASSWORD_RESET_MAX_ATTEMPTS = 5;
 
 type TokenPayload = {
   userId: string;
@@ -29,6 +39,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -138,7 +149,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email.trim().toLowerCase() },
       include: {
         memberships: {
           where: { status: "ACTIVE" },
@@ -170,6 +181,134 @@ export class AuthService {
       session.refreshToken,
       membership?.role,
     );
+  }
+
+  async requestPasswordReset(dto: RequestPasswordResetDto) {
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, status: true },
+    });
+
+    // Keep this response identical for unknown or disabled accounts.
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      return { ok: true };
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + PASSWORD_RESET_OTP_TTL_MS);
+    const code = this.generatePasswordResetOtp();
+    const reset = await this.prisma.$transaction(async (tx) => {
+      await tx.passwordResetOtp.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+      return tx.passwordResetOtp.create({
+        data: {
+          userId: user.id,
+          otpHash: this.hashPasswordResetValue(code),
+          expiresAt,
+        },
+      });
+    });
+
+    const delivery = await this.emailService.sendPasswordResetOtp({
+      recipient: email,
+      code,
+      expiresAt,
+    });
+    if (!delivery.sent) {
+      await this.prisma.passwordResetOtp.updateMany({
+        where: { id: reset.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+    }
+
+    return { ok: true };
+  }
+
+  async verifyPasswordResetOtp(dto: VerifyPasswordResetOtpDto) {
+    const now = new Date();
+    const reset = await this.prisma.passwordResetOtp.findFirst({
+      where: {
+        user: { email: dto.email.trim().toLowerCase() },
+        consumedAt: null,
+        verifiedAt: null,
+        expiresAt: { gt: now },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!reset || reset.attempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
+      throw new BadRequestException("This reset code is invalid or expired");
+    }
+
+    const otpHash = this.hashPasswordResetValue(dto.otp);
+    const isValid = timingSafeEqual(
+      Buffer.from(otpHash, "utf8"),
+      Buffer.from(reset.otpHash, "utf8"),
+    );
+    if (!isValid) {
+      const attempts = reset.attempts + 1;
+      await this.prisma.passwordResetOtp.update({
+        where: { id: reset.id },
+        data: {
+          attempts,
+          ...(attempts >= PASSWORD_RESET_MAX_ATTEMPTS ? { consumedAt: now } : {}),
+        },
+      });
+      throw new BadRequestException("This reset code is invalid or expired");
+    }
+
+    const resetToken = randomBytes(32).toString("base64url");
+    const verified = await this.prisma.passwordResetOtp.updateMany({
+      where: {
+        id: reset.id,
+        consumedAt: null,
+        verifiedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: {
+        verifiedAt: now,
+        resetTokenHash: this.hashPasswordResetValue(resetToken),
+      },
+    });
+    if (verified.count !== 1) {
+      throw new BadRequestException("This reset code is invalid or expired");
+    }
+
+    return { resetToken };
+  }
+
+  async confirmPasswordReset(dto: ConfirmPasswordResetDto) {
+    const now = new Date();
+    const resetTokenHash = this.hashPasswordResetValue(dto.resetToken);
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+
+    await this.prisma.$transaction(async (tx) => {
+      const reset = await tx.passwordResetOtp.findUnique({
+        where: { resetTokenHash },
+      });
+      if (
+        !reset ||
+        reset.consumedAt ||
+        !reset.verifiedAt ||
+        reset.expiresAt <= now
+      ) {
+        throw new BadRequestException("This password reset is invalid or expired");
+      }
+
+      await tx.user.update({
+        where: { id: reset.userId },
+        data: { passwordHash },
+      });
+      await tx.passwordResetOtp.update({
+        where: { id: reset.id },
+        data: { consumedAt: now },
+      });
+      await this.revokeAllSessions(tx, reset.userId, now);
+    });
+
+    return { ok: true };
   }
 
   async refresh(sessionId: string, refreshToken: string) {
@@ -400,6 +539,18 @@ export class AuthService {
 
   private hashInvitationToken(token: string) {
     return createHash("sha256").update(token).digest("hex");
+  }
+
+  private hashPasswordResetValue(value: string) {
+    const pepper =
+      this.configService.get<string>("PASSWORD_RESET_TOKEN_PEPPER") ??
+      this.configService.get<string>("REFRESH_TOKEN_PEPPER") ??
+      this.configService.getOrThrow<string>("JWT_REFRESH_SECRET");
+    return createHmac("sha256", pepper).update(value).digest("hex");
+  }
+
+  private generatePasswordResetOtp() {
+    return randomInt(0, 1_000_000).toString().padStart(6, "0");
   }
 
   private nextRefreshExpiry(now: Date, absoluteExpiresAt: Date) {

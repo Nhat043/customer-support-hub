@@ -35,16 +35,27 @@ services:
       QDRANT_COLLECTION: agent_memory
       JWT_ACCESS_SECRET: replace-me-access-secret
       REFRESH_TOKEN_PEPPER: replace-me-refresh-token-pepper
+      PASSWORD_RESET_TOKEN_PEPPER: ${PASSWORD_RESET_TOKEN_PEPPER:-}
       ACCESS_TOKEN_TTL: 15m
       REFRESH_TOKEN_TTL: 30d
       REFRESH_TOKEN_ABSOLUTE_TTL: 90d
       COOKIE_DOMAIN: localhost
       COOKIE_SECURE: "false"
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     depends_on:
       redis:
         condition: service_healthy
       qdrant:
         condition: service_started
+    extra_hosts:
+      # Lets Docker Desktop containers reach PostgreSQL running on the host machine.
+      - "host.docker.internal:host-gateway"
     ports:
       - "4000:4000"
 

@@ -6,6 +6,35 @@ export function validateEnvironment(environment: Environment): Environment {
   const errors: string[] = [];
   const refreshTokenPepper =
     environment.REFRESH_TOKEN_PEPPER ?? environment.JWT_REFRESH_SECRET;
+  const passwordResetPepper =
+    environment.PASSWORD_RESET_TOKEN_PEPPER ?? refreshTokenPepper;
+
+  if (environment.EMAIL_PROVIDER && environment.EMAIL_PROVIDER !== "gmail") {
+    errors.push("EMAIL_PROVIDER must be gmail when email delivery is enabled");
+  }
+  if (environment.EMAIL_PROVIDER === "gmail") {
+    for (const variable of [
+      "EMAIL_FROM",
+      "SMTP_HOST",
+      "SMTP_PORT",
+      "SMTP_SECURE",
+      "SMTP_USER",
+      "SMTP_PASSWORD",
+    ]) {
+      if (!environment[variable]) {
+        errors.push(`${variable} is required when EMAIL_PROVIDER is gmail`);
+      }
+    }
+    if (environment.SMTP_HOST && environment.SMTP_HOST !== "smtp.gmail.com") {
+      errors.push("SMTP_HOST must be smtp.gmail.com for Gmail delivery");
+    }
+    if (environment.SMTP_PORT && environment.SMTP_PORT !== "465") {
+      errors.push("SMTP_PORT must be 465 for Gmail delivery");
+    }
+    if (environment.SMTP_SECURE && environment.SMTP_SECURE !== "true") {
+      errors.push("SMTP_SECURE must be true for Gmail delivery");
+    }
+  }
 
   for (const variable of [
     "ACCESS_TOKEN_TTL",
@@ -32,6 +61,11 @@ export function validateEnvironment(environment: Environment): Environment {
     validateSecret(
       "REFRESH_TOKEN_PEPPER or JWT_REFRESH_SECRET",
       refreshTokenPepper,
+      errors,
+    );
+    validateSecret(
+      "PASSWORD_RESET_TOKEN_PEPPER, REFRESH_TOKEN_PEPPER, or JWT_REFRESH_SECRET",
+      passwordResetPepper,
       errors,
     );
   }

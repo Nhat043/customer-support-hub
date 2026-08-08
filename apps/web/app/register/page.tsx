@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { saveSession } from "@/lib/auth";
@@ -23,11 +23,34 @@ function RegisterContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [organizationName, setOrganizationName] = useState("");
+  const [invitationEmail, setInvitationEmail] = useState("");
+  const [invitationLoading, setInvitationLoading] = useState(Boolean(invitationToken));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (!invitationToken) return;
+    let active = true;
+    void apiFetch<{ email: string }>(`/invitations/${encodeURIComponent(invitationToken)}`)
+      .then((invitation) => {
+        if (!active) return;
+        setInvitationEmail(invitation.email);
+        setEmail(invitation.email);
+      })
+      .catch(() => {
+        if (active) setError("This invitation is invalid, expired, or has already been used.");
+      })
+      .finally(() => {
+        if (active) setInvitationLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [invitationToken]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (invitationToken && (!invitationEmail || invitationLoading)) return;
     setLoading(true);
     setError(null);
     try {
@@ -81,14 +104,28 @@ function RegisterContent() {
           </p>
           <form className="grid" onSubmit={submit}>
             <input className="input" placeholder="Your full name" value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={2} autoComplete="name" />
-            <input className="input" type="email" placeholder="Work email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
+            <label className="grid">
+              <span>{invitationToken ? "Invitation email" : "Work email"}</span>
+              <input
+                className="input"
+                type="email"
+                placeholder="Work email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                autoComplete="email"
+                readOnly={Boolean(invitationToken)}
+                aria-readonly={Boolean(invitationToken)}
+              />
+            </label>
+            {invitationToken && invitationEmail ? <p className="muted">This email is locked to the invitation recipient.</p> : null}
             <input className="input" type="password" placeholder="Create a password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="new-password" />
             {!invitationToken ? (
               <input className="input" placeholder="Company name" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} required minLength={2} />
             ) : null}
             {error ? <p className="form-error">We could not create this account. Check the details and try again.</p> : null}
-            <button className="btn primary" disabled={loading} type="submit">
-              {loading ? "Creating..." : invitationToken ? "Create account and join team" : "Create company workspace"}
+            <button className="btn primary" disabled={loading || invitationLoading || Boolean(invitationToken && !invitationEmail)} type="submit">
+              {invitationLoading ? "Checking invitation..." : loading ? "Creating..." : invitationToken ? "Create account and join team" : "Create company workspace"}
             </button>
           </form>
         </section>

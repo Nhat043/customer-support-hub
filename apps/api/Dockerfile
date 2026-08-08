@@ -12,8 +12,8 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS build
 COPY apps/api ./apps/api
 COPY packages/shared ./packages/shared
-RUN pnpm --filter @new-project/api prisma:generate
-RUN pnpm --filter @new-project/api build
+RUN pnpm --filter @customer-support-hub/api prisma:generate
+RUN pnpm --filter @customer-support-hub/api build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app/apps/api

@@ -19,6 +19,7 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const invitationToken = searchParams.get("invitation");
+  const resetCompleted = searchParams.get("reset") === "success";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -132,7 +133,12 @@ function LoginContent() {
               />
             </label>
 
+            <Link className="text-link" href="/forgot-password">
+              Forgot your password?
+            </Link>
+
             {error ? <p className="form-error">We could not sign you in. Check your email and password, then try again.</p> : null}
+            {resetCompleted ? <p className="form-success">Password updated. Sign in with your new password.</p> : null}
             <button className="btn primary" disabled={loading} type="submit">
               {loading ? "Signing in..." : "Sign in"}
             </button>

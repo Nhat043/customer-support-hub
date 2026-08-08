@@ -37,3 +37,24 @@ test("configuration rejects invalid token duration syntax", () => {
     /REFRESH_TOKEN_TTL/,
   );
 });
+
+test("configuration requires a complete Gmail SMTP setup when email is enabled", () => {
+  assert.throws(
+    () => validateEnvironment({ EMAIL_PROVIDER: "gmail", SMTP_HOST: "smtp.gmail.com" }),
+    /EMAIL_FROM.*SMTP_PORT.*SMTP_SECURE.*SMTP_USER.*SMTP_PASSWORD/,
+  );
+});
+
+test("configuration accepts Gmail SMTP with an App Password", () => {
+  assert.doesNotThrow(() =>
+    validateEnvironment({
+      EMAIL_PROVIDER: "gmail",
+      EMAIL_FROM: "Customer Support Hub <nhatnl04@gmail.com>",
+      SMTP_HOST: "smtp.gmail.com",
+      SMTP_PORT: "465",
+      SMTP_SECURE: "true",
+      SMTP_USER: "nhatnl04@gmail.com",
+      SMTP_PASSWORD: "sixteen-character-app-password",
+    }),
+  );
+});

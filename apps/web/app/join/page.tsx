@@ -9,6 +9,7 @@ import { PublicHeader } from "@/components/public-header";
 
 type InvitationPreview = {
   email: string;
+  hasAccount: boolean;
   role: MembershipRole;
   expiresAt: string;
   organization: { slug: string; name: string };
@@ -35,10 +36,16 @@ function JoinContent() {
       setError("This invitation link is incomplete.");
       return;
     }
-    void apiFetch<InvitationPreview>(`/invitations/${token}`)
-      .then(setInvitation)
+    void apiFetch<InvitationPreview>(`/invitations/${encodeURIComponent(token)}`)
+      .then((preview) => {
+        if (!getSession() && !preview.hasAccount) {
+          router.replace(`/register?invitation=${encodeURIComponent(token)}`);
+          return;
+        }
+        setInvitation(preview);
+      })
       .catch((previewError) => setError(previewError instanceof Error ? previewError.message : "This invitation is unavailable."));
-  }, [token]);
+  }, [router, token]);
 
   async function accept() {
     const session = getSession();
@@ -89,10 +96,7 @@ function JoinContent() {
                   {loading ? "Joining..." : "Join workspace"}
                 </button>
               ) : (
-                <div className="row">
-                  <Link className="btn primary" href={`/login${query}`}>Sign in to join</Link>
-                  <Link className="btn secondary" href={`/register${query}`}>Create account to join</Link>
-                </div>
+                <Link className="btn primary" href={`/login${query}`}>Sign in to join</Link>
               )}
             </>
           ) : (

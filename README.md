@@ -85,6 +85,24 @@ cp .env.example .env
 
 Set `DATABASE_URL` in `.env` to a local PostgreSQL database. The default AI mode is `mock`; no OpenAI or other provider key is required.
 
+### Optional: Gmail invitation emails
+
+Team invitations use secure one-time tokens. With email disabled, an owner/admin can copy the generated invitation link manually. To send those links from `nhatnl04@gmail.com` during local development, enable Google two-step verification, create a Google **App Password**, then set these values in the uncommitted `.env` file:
+
+```dotenv
+EMAIL_PROVIDER=gmail
+EMAIL_FROM="Customer Support Hub <nhatnl04@gmail.com>"
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=nhatnl04@gmail.com
+SMTP_PASSWORD=your-16-character-google-app-password
+```
+
+Never use the normal Gmail password, commit the App Password, or paste it into GitHub Actions. A failed SMTP delivery leaves the invitation pending and exposes a copyable fallback link only to the authenticated owner/admin who created it.
+
+Password recovery sends a six-digit OTP that is valid for ten minutes and accepts at most five verification attempts. The API stores only an HMAC hash of the OTP/reset token; confirmed passwords are stored with bcrypt. Set a distinct `PASSWORD_RESET_TOKEN_PEPPER` in `.env` for non-local environments.
+
 ### Install and migrate
 
 ```bash
@@ -99,11 +117,15 @@ For local development with the app running from source:
 
 ```bash
 docker compose up -d redis qdrant prometheus loki promtail grafana
-pnpm --filter @new-project/api dev
-pnpm --filter @new-project/web dev
+pnpm --filter @customer-support-hub/api dev
+pnpm --filter @customer-support-hub/web dev
 ```
 
-Or run the local Compose stack after setting `LOCAL_DATABASE_URL`:
+Or run the local Compose stack after setting `LOCAL_DATABASE_URL`. When PostgreSQL runs on the same machine as Docker Desktop, use `host.docker.internal` as its hostname rather than a WSL gateway IP. Gmail SMTP variables in `.env` are passed only to the local API container:
+
+```dotenv
+LOCAL_DATABASE_URL=postgresql://postgres:replace-me@host.docker.internal:5432/workflow_platform_dev?schema=public
+```
 
 ```bash
 docker compose up -d
@@ -121,7 +143,7 @@ Local endpoints:
 
 ```bash
 pnpm lint
-pnpm --filter @new-project/api test:coverage
+pnpm --filter @customer-support-hub/api test:coverage
 pnpm build
 pnpm exec prisma validate --schema prisma/schema.prisma
 ```
@@ -140,7 +162,6 @@ No deployment is required to explore or run the project locally.
 
 ## Roadmap
 
-- Email delivery for team invitations.
 - Request assignment, SLA targets, and customer-facing status updates.
 - Real LLM provider configuration with prompt safety and tool authorization policies.
 - Tenant-level analytics and agent evaluation datasets.

@@ -1,5 +1,5 @@
 {
-  "name": "new-project",
+  "name": "customer-support-hub",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.13.0",
@@ -13,8 +13,8 @@
     "prisma:migrate:create": "prisma migrate dev --create-only --schema prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma",
-    "db:seed": "pnpm --filter @new-project/api db:seed",
-    "test": "pnpm --filter @new-project/api test",
+    "db:seed": "pnpm --filter @customer-support-hub/api db:seed",
+    "test": "pnpm --filter @customer-support-hub/api test",
     "prisma:studio": "prisma studio"
   },
   "devDependencies": {

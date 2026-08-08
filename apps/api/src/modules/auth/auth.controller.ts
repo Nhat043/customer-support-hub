@@ -15,7 +15,13 @@ import { Public } from "../../common/decorators/public.decorator";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { AuthRateLimitGuard } from "../../common/guards/auth-rate-limit.guard";
 import { AuthService } from "./auth.service";
-import { LoginDto, RegisterDto } from "./dto/auth.dto";
+import {
+  ConfirmPasswordResetDto,
+  LoginDto,
+  RegisterDto,
+  RequestPasswordResetDto,
+  VerifyPasswordResetOtpDto,
+} from "./dto/auth.dto";
 import { ApiTags } from "@nestjs/swagger";
 
 @ApiTags("Auth")
@@ -60,6 +66,27 @@ export class AuthController {
       activeOrganizationSlug: result.activeOrganizationSlug,
       activeMembershipRole: result.activeMembershipRole,
     };
+  }
+
+  @Public()
+  @UseGuards(AuthRateLimitGuard)
+  @Post("password-reset/request")
+  requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(dto);
+  }
+
+  @Public()
+  @UseGuards(AuthRateLimitGuard)
+  @Post("password-reset/verify")
+  verifyPasswordResetOtp(@Body() dto: VerifyPasswordResetOtpDto) {
+    return this.authService.verifyPasswordResetOtp(dto);
+  }
+
+  @Public()
+  @UseGuards(AuthRateLimitGuard)
+  @Post("password-reset/confirm")
+  confirmPasswordReset(@Body() dto: ConfirmPasswordResetDto) {
+    return this.authService.confirmPasswordReset(dto);
   }
 
   @Public()

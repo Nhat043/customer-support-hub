@@ -106,7 +106,12 @@ function createHarness(
   };
 
   return {
-    service: new AuthService(prisma as never, jwt as never, config as never),
+    service: new AuthService(
+      prisma as never,
+      jwt as never,
+      config as never,
+      { sendPasswordResetOtp: async () => ({ sent: true }) } as never,
+    ),
     calls,
   };
 }
@@ -200,6 +205,7 @@ test("login rejects disabled users before creating a session", async () => {
     prisma as never,
     { signAsync: async () => "access" } as never,
     { get: () => undefined, getOrThrow: () => "secret" } as never,
+    { sendPasswordResetOtp: async () => ({ sent: true }) } as never,
   );
 
   await assert.rejects(
@@ -267,6 +273,7 @@ test("register creates an organization, a session, and a hashed refresh token", 
         })[key as "REFRESH_TOKEN_PEPPER"],
       getOrThrow: () => "access-secret",
     } as never,
+    { sendPasswordResetOtp: async () => ({ sent: true }) } as never,
   );
 
   const result = await service.register({
@@ -332,6 +339,7 @@ test("login creates a session for an active user", async () => {
         })[key as "REFRESH_TOKEN_PEPPER"],
       getOrThrow: () => "access-secret",
     } as never,
+    { sendPasswordResetOtp: async () => ({ sent: true }) } as never,
   );
 
   const result = await service.login({

@@ -32,7 +32,11 @@ export default function TeamPage() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<MembershipRole>("MEMBER");
-  const [inviteLink, setInviteLink] = useState("");
+  const [inviteStatus, setInviteStatus] = useState<{
+    sent: boolean;
+    recipient: string;
+    manualLink?: string;
+  } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -59,14 +63,22 @@ export default function TeamPage() {
     if (!session || !email.trim()) return;
     setLoading(true);
     setError("");
-    setInviteLink("");
+    setInviteStatus(null);
     try {
-      const created = await apiFetch<{ token: string }>(`/orgs/${orgSlug}/invitations`, {
+      const created = await apiFetch<{
+        delivery: { sent: boolean; recipient: string };
+        manualInvitationToken?: string;
+      }>(`/orgs/${orgSlug}/invitations`, {
         method: "POST",
         accessToken: session.accessToken,
         body: JSON.stringify({ email: email.trim(), role: inviteRole }),
       });
-      setInviteLink(`${window.location.origin}/join?token=${encodeURIComponent(created.token)}`);
+      setInviteStatus({
+        ...created.delivery,
+        manualLink: created.manualInvitationToken
+          ? `${window.location.origin}/join?token=${encodeURIComponent(created.manualInvitationToken)}`
+          : undefined,
+      });
       setEmail("");
       await load();
     } catch (inviteError) {
@@ -76,9 +88,9 @@ export default function TeamPage() {
     }
   }
 
-  async function copyInviteLink() {
+  async function copyInviteLink(manualLink: string) {
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      await navigator.clipboard.writeText(manualLink);
     } catch {
       setError("Copy this invitation link manually.");
     }
@@ -151,14 +163,23 @@ export default function TeamPage() {
               ))}
             </select>
             <button className="btn primary" type="submit" disabled={loading}>
-              {loading ? "Creating invitation..." : "Create invitation link"}
+              {loading ? "Sending invitation..." : "Send invitation email"}
             </button>
           </form>
-          {inviteLink ? (
+          {inviteStatus ? (
             <div className="card" style={{ marginTop: 18 }}>
-              <strong>Invitation link is ready</strong>
-              <p className="muted" style={{ overflowWrap: "anywhere" }}>{inviteLink}</p>
-              <button className="btn secondary" type="button" onClick={() => void copyInviteLink()}>Copy invitation link</button>
+              <strong>{inviteStatus.sent ? "Invitation email sent" : "Email was not sent"}</strong>
+              <p className="muted">
+                {inviteStatus.sent
+                  ? `An invitation was sent to ${inviteStatus.recipient}.`
+                  : "Gmail SMTP is not configured or was unavailable. You can copy the secure invitation link below instead."}
+              </p>
+              {inviteStatus.manualLink ? (
+                <>
+                  <p className="muted" style={{ overflowWrap: "anywhere" }}>{inviteStatus.manualLink}</p>
+                  <button className="btn secondary" type="button" onClick={() => void copyInviteLink(inviteStatus.manualLink!)}>Copy invitation link</button>
+                </>
+              ) : null}
             </div>
           ) : null}
         </section>

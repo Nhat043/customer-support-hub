@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "New Project",
+  title: "Customer Support Hub",
   description: "Multi-tenant workflow intelligence platform"
 };
 
