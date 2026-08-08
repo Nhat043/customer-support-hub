@@ -1,0 +1,146 @@
+# Customer Support Hub
+
+A multi-tenant workspace for support and operations teams to capture customer requests, assign work, collaborate on resolution, and use an AI helper with auditable actions.
+
+The project is designed as a portfolio-grade full-stack system rather than a UI-only demo. It focuses on tenant isolation, secure session handling, role-based access, event history, testing, observability, and a deployable container architecture.
+
+## What It Does
+
+- Creates a company workspace when its first owner registers.
+- Lets owners and admins invite teammates with `ADMIN`, `MEMBER`, or `VIEWER` permissions.
+- Keeps delivery issues, refund requests, and customer questions as trackable customer requests.
+- Supports comments, request state changes, and an audit trail within the active company/workspace.
+- Provides an AI helper with function tools, streaming over Socket.IO, idempotent agent runs, and pluggable vector memory.
+- Uses mock AI by default, so local development does not require an AI provider key.
+
+## Roles
+
+| Role | Primary responsibility |
+| --- | --- |
+| Owner | Creates the company workspace, manages workspace settings, and invites the initial team. |
+| Admin | Manages team members and operational setup. |
+| Member | Creates, updates, comments on, and resolves customer requests. |
+| Viewer | Reads workspace activity without changing requests. |
+
+An account is not permanently tied to one role. A user has a role per company membership and can belong to more than one company.
+
+## Architecture
+
+```text
+Next.js web app
+        |
+        | HTTPS / REST + Socket.IO
+        v
+NestJS API
+  |-- Auth, refresh-token sessions, RBAC, rate limiting
+  |-- Organizations, workspaces, invitations, customer requests
+  |-- AI agent tools, idempotent runs, streamed events
+  |
+  +--> PostgreSQL / Prisma: tenant data, sessions, audit records
+  +--> Redis: shared rate limiting and runtime coordination
+  +--> Qdrant: optional AI memory vector store
+  +--> Prometheus + Loki + Grafana: metrics and logs
+```
+
+Tenant boundaries are enforced from the organization/workspace context and role guard, rather than trusting a client-provided tenant identifier alone.
+
+## Stack
+
+- **Frontend:** Next.js 15, React 19, TypeScript
+- **Backend:** NestJS 11, TypeScript, Socket.IO
+- **Database:** PostgreSQL, Prisma migrations
+- **AI:** provider abstraction, function tools, mock provider, optional Qdrant memory
+- **Runtime:** Docker Compose, Redis, Qdrant
+- **Observability:** Prometheus, Loki, Grafana
+- **Quality:** ESLint, TypeScript, Prisma validation, unit tests with an 80% coverage gate
+- **CI:** GitHub Actions
+
+## Repository Layout
+
+```text
+apps/
+  api/                 NestJS API, modules, unit tests
+  web/                 Next.js application
+packages/shared/       Shared TypeScript contracts
+prisma/                Prisma schema and SQL migrations
+infra/observability/   Prometheus, Loki, Grafana, Promtail configuration
+deploy/gce/            Production Compose reference for a future personal GCE setup
+.github/workflows/     CI and manually gated deployment workflow
+```
+
+## Run Locally
+
+### Prerequisites
+
+- Node.js 22+
+- pnpm 10+
+- PostgreSQL 16+
+- Docker Desktop, for Redis, Qdrant, and observability services
+
+### Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Set `DATABASE_URL` in `.env` to a local PostgreSQL database. The default AI mode is `mock`; no OpenAI or other provider key is required.
+
+### Install and migrate
+
+```bash
+pnpm install --frozen-lockfile
+pnpm prisma:generate
+pnpm prisma:migrate:deploy
+```
+
+### Start services
+
+For local development with the app running from source:
+
+```bash
+docker compose up -d redis qdrant prometheus loki promtail grafana
+pnpm --filter @new-project/api dev
+pnpm --filter @new-project/web dev
+```
+
+Or run the local Compose stack after setting `LOCAL_DATABASE_URL`:
+
+```bash
+docker compose up -d
+```
+
+Local endpoints:
+
+- Web: `http://localhost:3000`
+- API: `http://localhost:4000/api`
+- Swagger: `http://localhost:4000/api/docs`
+- Grafana: `http://localhost:3001` (`admin` / `admin` for local development)
+- Prometheus: `http://localhost:9090`
+
+## Quality Checks
+
+```bash
+pnpm lint
+pnpm --filter @new-project/api test:coverage
+pnpm build
+pnpm exec prisma validate --schema prisma/schema.prisma
+```
+
+The GitHub Actions CI workflow runs these checks on every pull request and every push to `main`. It also builds the API and web Docker images to validate production Dockerfiles.
+
+## Deployment Safety
+
+This repository includes a GCE deployment workflow as infrastructure reference only.
+
+- It runs **only** from GitHub Actions `workflow_dispatch`; a push to `main` cannot deploy.
+- It is blocked unless the repository variable `ENABLE_GCE_DEPLOY` is explicitly set to `true`.
+- No cloud credentials, GCP project IDs, or production secrets are committed to this repository.
+
+No deployment is required to explore or run the project locally.
+
+## Roadmap
+
+- Email delivery for team invitations.
+- Request assignment, SLA targets, and customer-facing status updates.
+- Real LLM provider configuration with prompt safety and tool authorization policies.
+- Tenant-level analytics and agent evaluation datasets.

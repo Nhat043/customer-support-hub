@@ -120,6 +120,7 @@ export default function AgentPage() {
           </button>
         </form>
         {error ? <p className="error">{error}</p> : null}
+        {loading && liveStatus ? <p className="muted">{liveStatus}</p> : null}
       </div>
       <aside className="card">
         <h3>Available function calls</h3>

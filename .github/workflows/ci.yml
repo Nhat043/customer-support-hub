@@ -18,6 +18,9 @@ jobs:
     name: Verify application
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Prisma validates the datasource URL format without connecting to this database.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/customer_support_hub_ci?schema=public
 
     steps:
       - name: Check out source
@@ -41,6 +44,9 @@ jobs:
 
       - name: Validate Prisma schema
         run: pnpm exec prisma validate --schema prisma/schema.prisma
+
+      - name: Lint source code
+        run: pnpm lint
 
       - name: Run API unit tests and enforce coverage
         run: pnpm --filter @new-project/api test:coverage

@@ -1,6 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { WorkflowItemStatus } from "../../../node_modules/.prisma/client";
-import type { Prisma } from "../../../node_modules/.prisma/client";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 export type AgentToolContext = {
@@ -37,7 +36,7 @@ export class AgentToolsService {
       ["list_workflow_items", {
         name: "list_workflow_items",
         description: "List workflow items inside the current organization and optional workspace.",
-        execute: (context, _args) => this.listWorkflowItems(context)
+        execute: (context) => this.listWorkflowItems(context)
       }],
       ["create_workflow_item", {
         name: "create_workflow_item",
