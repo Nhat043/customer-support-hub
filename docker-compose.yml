@@ -33,6 +33,12 @@ services:
       VECTOR_STORE: qdrant
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: agent_memory
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
+      AI_MODEL: ${AI_MODEL:-mock-function-caller}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_USE_VERTEX_AI: ${GEMINI_USE_VERTEX_AI:-true}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
       JWT_ACCESS_SECRET: replace-me-access-secret
       REFRESH_TOKEN_PEPPER: replace-me-refresh-token-pepper
       PASSWORD_RESET_TOKEN_PEPPER: ${PASSWORD_RESET_TOKEN_PEPPER:-}

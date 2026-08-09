@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { clearSession, getSession } from "@/lib/auth";
 
@@ -14,6 +15,14 @@ export default function OrgLayout({
   const router = useRouter();
   const role = getSession()?.activeMembershipRole;
   const canManageTeam = role === "OWNER" || role === "ADMIN";
+  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; readAt: string | null }>>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    const session = getSession();
+    if (!session || !params.orgSlug) return;
+    void apiFetch<Array<{ id: string; title: string; body: string; readAt: string | null }>>(`/orgs/${params.orgSlug}/notifications`, { accessToken: session.accessToken }).then(setNotifications).catch(() => undefined);
+  }, [params.orgSlug]);
 
   async function logout() {
     const session = getSession();
@@ -62,6 +71,9 @@ export default function OrgLayout({
                 Team and roles
               </Link>
             ) : null}
+            <button className="btn secondary" type="button" onClick={() => setShowNotifications((value) => !value)}>
+              Notifications{notifications.filter((item) => !item.readAt).length ? ` (${notifications.filter((item) => !item.readAt).length})` : ""}
+            </button>
             {canManageTeam ? (
               <Link className="btn secondary" href={`/orgs/${params.orgSlug}/settings`}>
                 Settings
@@ -71,6 +83,7 @@ export default function OrgLayout({
               Logout
             </button>
           </nav>
+          {showNotifications ? <section className="card" style={{ position: "absolute", right: 24, top: 96, width: 340, zIndex: 2 }}><h3>Notifications</h3>{notifications.length ? notifications.map((item) => <article key={item.id} className="card"><strong>{item.title}</strong><p className="muted">{item.body}</p></article>) : <p className="muted">You are all caught up.</p>}</section> : null}
         </header>
         {children}
       </div>

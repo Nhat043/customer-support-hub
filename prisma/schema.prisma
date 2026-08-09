@@ -104,6 +104,19 @@ enum AgentRunStatus {
   CANCELLED
 }
 
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  FAILED
+}
+
+enum NotificationType {
+  REQUEST_ASSIGNED
+  SLA_DUE_SOON
+  SLA_OVERDUE
+}
+
 model Organization {
   id        String             @id @default(uuid()) @db.Uuid
   slug      String             @unique
@@ -124,6 +137,8 @@ model Organization {
   agentRuns      AgentRun[]
   agentMessages  AgentMessage[]
   memoryChunks   AgentMemoryChunk[]
+  outboxEvents   OutboxEvent[]
+  notifications  Notification[]
 
   @@index([status])
 }
@@ -219,9 +234,50 @@ model User {
   actorWorkflowEvents WorkflowEvent[]
   memoryChunks        AgentMemoryChunk[] @relation("MemoryOwner")
   passwordResetOtps   PasswordResetOtp[]
+  notifications       Notification[]
 
   @@index([role])
   @@index([status])
+}
+
+model OutboxEvent {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  type           String
+  payload        Json
+  dedupeKey      String           @unique
+  status         OutboxEventStatus @default(PENDING)
+  attempts       Int              @default(0)
+  availableAt    DateTime         @default(now())
+  deliveredAt    DateTime?
+  lastError      String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt])
+  @@index([organizationId, createdAt])
+}
+
+model Notification {
+  id             String           @id @default(uuid()) @db.Uuid
+  outboxEventId  String           @unique @db.Uuid
+  organizationId String           @db.Uuid
+  userId         String           @db.Uuid
+  type           NotificationType
+  title          String
+  body           String
+  workflowItemId String?          @db.Uuid
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflowItem WorkflowItem? @relation(fields: [workflowItemId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([organizationId, createdAt])
 }
 
 model PasswordResetOtp {
@@ -313,6 +369,7 @@ model WorkflowItem {
   comments     Comment[]
   attachments  Attachment[]
   agentRuns    AgentRun[]
+  notifications Notification[]
 
   @@index([organizationId])
   @@index([workspaceId])

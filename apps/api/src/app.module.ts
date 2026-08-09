@@ -10,6 +10,7 @@ import { WorkflowItemsModule } from "./modules/workflow-items/workflow-items.mod
 import { CommentsModule } from "./modules/comments/comments.module";
 import { AgentModule } from "./modules/agent/agent.module";
 import { TeamModule } from "./modules/team/team.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { ObservabilityModule } from "./infrastructure/observability/observability.module";
 import { RequestObservabilityMiddleware } from "./infrastructure/observability/request-observability.middleware";
 import { validateEnvironment } from "./config/validate-environment";
@@ -31,6 +32,7 @@ import { validateEnvironment } from "./config/validate-environment";
     CommentsModule,
     AgentModule,
     TeamModule,
+    NotificationsModule,
     HealthModule,
   ],
 })

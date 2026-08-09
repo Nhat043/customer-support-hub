@@ -12,6 +12,8 @@ type WorkflowItem = {
   description?: string | null;
   status: string;
   priority: string;
+  dueAt?: string | null;
+  owner?: { id: string; fullName: string } | null;
   createdAt: string;
 };
 
@@ -149,6 +151,12 @@ export default function WorkflowItemsPage() {
               <strong>{item.title}</strong>
             </Link>
             <p className="muted">{item.description ?? "No details added yet."}</p>
+            <p className="muted">Handled by: {item.owner?.fullName ?? "Unassigned"}</p>
+            <p className="muted">
+              {item.dueAt
+                ? `Due ${new Date(item.dueAt).toLocaleString()}${new Date(item.dueAt) < new Date() && item.status !== "CLOSED" ? " (overdue)" : ""}`
+                : "No deadline set"}
+            </p>
             <div className="row">
               {canEdit ? <select
                 className="select"
