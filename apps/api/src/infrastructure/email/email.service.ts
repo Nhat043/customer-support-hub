@@ -21,6 +21,8 @@ type PasswordResetOtpEmail = {
   expiresAt: Date;
 };
 
+type RequestAssignedEmail = { recipient: string; requestTitle: string; dueAt?: Date | null };
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -98,6 +100,28 @@ export class EmailService {
         `Could not send password reset OTP to ${input.recipient}`,
         error instanceof Error ? error.stack : undefined,
       );
+      return { sent: false, recipient: input.recipient };
+    }
+  }
+
+  isEnabled() {
+    return this.config.get<string>("EMAIL_PROVIDER") === "gmail";
+  }
+
+  async sendRequestAssigned(input: RequestAssignedEmail): Promise<InvitationEmailDelivery> {
+    const transporter = this.getTransporter();
+    if (!transporter) return { sent: false, recipient: input.recipient };
+    const deadline = input.dueAt ? ` Deadline: ${input.dueAt.toLocaleString("en-GB", { timeZone: "UTC" })} UTC.` : "";
+    try {
+      await transporter.sendMail({
+        from: this.config.getOrThrow<string>("EMAIL_FROM"),
+        to: input.recipient,
+        subject: `Customer request assigned: ${input.requestTitle}`,
+        text: `You have been assigned to customer request: ${input.requestTitle}.${deadline}`
+      });
+      return { sent: true, recipient: input.recipient };
+    } catch (error) {
+      this.logger.error(`Could not send assignment notification to ${input.recipient}`, error instanceof Error ? error.stack : undefined);
       return { sent: false, recipient: input.recipient };
     }
   }

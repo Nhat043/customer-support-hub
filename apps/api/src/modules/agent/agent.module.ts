@@ -10,6 +10,7 @@ import { AgentController } from "./agent.controller";
 import { AgentService } from "./agent.service";
 import { AgentToolsService } from "./agent-tools.service";
 import { MockAgentProvider } from "./mock-agent.provider";
+import { GeminiAgentProvider } from "./gemini-agent.provider";
 import { AgentGateway } from "./agent.gateway";
 import { ObservabilityModule } from "../../infrastructure/observability/observability.module";
 import { MemoryModule } from "../../infrastructure/memory/memory.module";
@@ -22,18 +23,18 @@ import { MemoryModule } from "../../infrastructure/memory/memory.module";
     AgentToolsService,
     AgentGateway,
     MockAgentProvider,
+    GeminiAgentProvider,
     JwtGuard,
     OrgGuard,
     RolesGuard,
     {
       provide: AGENT_PROVIDER,
-      inject: [ConfigService, MockAgentProvider],
-      useFactory: (config: ConfigService, mock: MockAgentProvider) => {
+      inject: [ConfigService, MockAgentProvider, GeminiAgentProvider],
+      useFactory: (config: ConfigService, mock: MockAgentProvider, gemini: GeminiAgentProvider) => {
         const provider = config.get<string>("AI_PROVIDER", "mock");
-        if (provider !== "mock") {
-          throw new Error(`Unsupported AI_PROVIDER: ${provider}. Use mock until a provider key is configured.`);
-        }
-        return mock;
+        if (provider === "mock") return mock;
+        if (provider === "gemini") return gemini;
+        throw new Error(`Unsupported AI_PROVIDER: ${provider}`);
       }
     }
   ]

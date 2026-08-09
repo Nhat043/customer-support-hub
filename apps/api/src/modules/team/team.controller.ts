@@ -29,7 +29,7 @@ export class TeamController {
   constructor(private readonly teamService: TeamService) {}
 
   @Get("members")
-  @Roles("OWNER", "ADMIN")
+  @Roles("OWNER", "ADMIN", "MEMBER")
   listMembers(@Req() req: any) {
     return this.teamService.listMembers(req.organization.id);
   }

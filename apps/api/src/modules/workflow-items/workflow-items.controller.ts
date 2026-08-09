@@ -36,6 +36,9 @@ export class WorkflowItemsController {
   @Patch(":id")
   @Roles("OWNER", "ADMIN", "MEMBER")
   update(@Req() req: any, @Param("id") id: string, @Body() dto: UpdateWorkflowItemDto) {
-    return this.workflowItemsService.update(req.organization.id, id, dto);
+    return this.workflowItemsService.update(req.organization.id, id, dto, {
+      userId: req.user.userId,
+      role: req.membership.role
+    });
   }
 }
