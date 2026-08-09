@@ -36,8 +36,9 @@ test("owner assigns an active team member and deadline with an assignment event"
     workflowItem: { findFirst: async () => currentItem },
     membership: { findFirst: async () => ({ id: "membership-1" }) },
     $transaction: async (callback: any) => callback({
-      workflowItem: { update: async ({ data }: any) => { calls.update = data; return { ...currentItem, ...data }; } },
-      workflowEvent: { create: async ({ data }: any) => { calls.event = data; return data; } }
+      workflowItem: { update: async ({ data }: any) => { calls.update = data; return { ...currentItem, ...data, updatedAt: new Date() }; } },
+      workflowEvent: { create: async ({ data }: any) => { calls.event = data; return data; } },
+      outboxEvent: { create: async () => ({ id: "outbox-1" }) }
     })
   };
   const service = new WorkflowItemsService(prisma as any);
