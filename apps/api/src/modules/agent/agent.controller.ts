@@ -21,7 +21,13 @@ export class AgentController {
 
   @Get("runs")
   history(@Req() req: any, @Query("workspaceId") workspaceId?: string) {
-    return this.agentService.history(req.organization.id, workspaceId);
+    return this.agentService.history(req.organization.id, req.user.userId, workspaceId);
+  }
+
+  @Get("conversation")
+  @ApiOperation({ summary: "Load the authenticated user's private agent conversation for this tenant" })
+  conversation(@Req() req: any, @Query("workspaceId") workspaceId?: string) {
+    return this.agentService.conversation(req.organization.id, req.user.userId, workspaceId);
   }
 
   @Get("memory")

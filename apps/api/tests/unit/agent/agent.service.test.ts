@@ -11,12 +11,14 @@ function createHarness(options: {
   workspace?: Record<string, unknown> | null;
   workflowItem?: Record<string, unknown> | null;
   memories?: Array<Record<string, unknown>>;
+  runs?: Array<Record<string, unknown>>;
 } = {}) {
   const updates: Array<Record<string, unknown>> = [];
   const createdRuns: Array<Record<string, unknown>> = [];
   const hookEvents: string[] = [];
   const metricEvents: string[] = [];
   const memoryEvents: string[] = [];
+  const runQueries: Array<Record<string, unknown>> = [];
   const prisma = {
     agentRun: {
       findUnique: async () => options.existingRun ?? null,
@@ -29,7 +31,10 @@ function createHarness(options: {
         updates.push(data);
         return data;
       },
-      findMany: async () => [{ id: "run-1", status: "SUCCEEDED" }]
+      findMany: async (query: Record<string, unknown>) => {
+        runQueries.push(query);
+        return options.runs ?? [{ id: "run-1", status: "SUCCEEDED" }];
+      }
     },
     agentMessage: {
       create: async () => ({ id: "message-1" })
@@ -66,7 +71,7 @@ function createHarness(options: {
   };
   const service = new AgentService(prisma, tools, config, metrics, memory, provider);
 
-  return { service, updates, createdRuns, hookEvents, metricEvents, memoryEvents };
+  return { service, updates, createdRuns, hookEvents, metricEvents, memoryEvents, runQueries };
 }
 
 test("agent service replays a completed run for the same idempotency key", async () => {
@@ -196,9 +201,32 @@ test("agent service supports text-only responses and tenant-scoped history", asy
   assert.equal(result.output, "No tool needed");
   assert.equal(harness.updates[0]?.status, "SUCCEEDED");
   assert.equal(harness.service.listTools().provider, "mock");
-  assert.deepEqual(await harness.service.history("org-1", "workspace-1"), [
+  assert.deepEqual(await harness.service.history("org-1", "user-1", "workspace-1"), [
     { id: "run-1", status: "SUCCEEDED" }
   ]);
+});
+
+test("agent service returns only persisted user and assistant messages for private conversation history", async () => {
+  const harness = createHarness({
+    runs: [{
+      id: "run-1",
+      startedAt: new Date("2026-08-10T10:00:00.000Z"),
+      messages: [
+        { id: "message-user", role: "USER", content: { text: "Are there new requests?" }, createdAt: new Date("2026-08-10T10:00:01.000Z") },
+        { id: "message-tool", role: "AGENT", content: { type: "tool_result", result: { count: 2 } }, createdAt: new Date("2026-08-10T10:00:02.000Z") },
+        { id: "message-assistant", role: "ASSISTANT", content: { text: "There are 2 new requests." }, createdAt: new Date("2026-08-10T10:00:03.000Z") }
+      ]
+    }]
+  });
+
+  assert.deepEqual(await harness.service.conversation("org-1", "user-1"), [
+    { id: "message-user", runId: "run-1", role: "user", text: "Are there new requests?", createdAt: new Date("2026-08-10T10:00:01.000Z") },
+    { id: "message-assistant", runId: "run-1", role: "assistant", text: "There are 2 new requests.", createdAt: new Date("2026-08-10T10:00:03.000Z") }
+  ]);
+  assert.deepEqual((harness.runQueries[0]?.where as Record<string, unknown>), {
+    organizationId: "org-1",
+    userId: "user-1"
+  });
 });
 
 test("agent service handles a completed replay without an output summary", async () => {

@@ -190,9 +190,9 @@ export class AgentService {
     return { provider: this.config.get<string>("AI_PROVIDER", "mock"), tools: this.tools.listDefinitions() };
   }
 
-  history(organizationId: string, workspaceId?: string) {
+  history(organizationId: string, userId: string, workspaceId?: string) {
     return this.prisma.agentRun.findMany({
-      where: { organizationId, ...(workspaceId ? { workspaceId } : {}) },
+      where: { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) },
       select: {
         id: true,
         workspaceId: true,
@@ -208,6 +208,35 @@ export class AgentService {
     });
   }
 
+  async conversation(organizationId: string, userId: string, workspaceId?: string) {
+    const runs = await this.prisma.agentRun.findMany({
+      where: { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) },
+      select: {
+        id: true,
+        startedAt: true,
+        messages: {
+          where: { role: { in: ["USER", "ASSISTANT"] } },
+          select: { id: true, role: true, content: true, createdAt: true },
+          orderBy: { createdAt: "asc" }
+        }
+      },
+      orderBy: { startedAt: "desc" },
+      take: 50
+    });
+
+    return runs.reverse().flatMap((run) => run.messages.flatMap((message) => {
+      const text = this.messageText(message.content);
+      if (!text) return [];
+      return [{
+        id: message.id,
+        runId: run.id,
+        role: message.role === "USER" ? "user" as const : "assistant" as const,
+        text,
+        createdAt: message.createdAt
+      }];
+    }));
+  }
+
   memoryHistory(organizationId: string, userId: string, workspaceId?: string) {
     return this.memory.list({ organizationId, userId, workspaceId });
   }
@@ -218,5 +247,11 @@ export class AgentService {
     const action = candidate as Partial<AgentUiAction>;
     if (action.type !== "navigate" || !action.target || !action.label) return undefined;
     return action as AgentUiAction;
+  }
+
+  private messageText(content: Prisma.JsonValue | null) {
+    if (!content || typeof content !== "object" || Array.isArray(content)) return undefined;
+    const text = (content as { text?: unknown }).text;
+    return typeof text === "string" && text.trim() ? text : undefined;
   }
 }

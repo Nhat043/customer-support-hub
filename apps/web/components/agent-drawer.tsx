@@ -1,12 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
-import { API_ORIGIN } from "@/lib/api";
+import { apiFetch, API_ORIGIN } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 
-type ChatMessage = { role: "user" | "assistant"; text: string };
+type ChatMessage = { id?: string; role: "user" | "assistant"; text: string; createdAt?: string };
 type UiAction = {
   type: "navigate";
   target: "dashboard" | "requests" | "request_detail";
@@ -20,9 +20,32 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [status, setStatus] = useState("Ready to help");
   const [error, setError] = useState("");
   const [uiAction, setUiAction] = useState<UiAction | null>(null);
+
+  useEffect(() => {
+    const session = getSession();
+    if (!session) {
+      setLoadingHistory(false);
+      return;
+    }
+    let active = true;
+    setLoadingHistory(true);
+
+    void apiFetch<ChatMessage[]>(`/orgs/${orgSlug}/agent/conversation`, {
+      accessToken: session.accessToken
+    }).then((history) => {
+      if (active) setMessages(history);
+    }).catch(() => {
+      if (active) setError("Could not load your previous assistant conversation.");
+    }).finally(() => {
+      if (active) setLoadingHistory(false);
+    });
+
+    return () => { active = false; };
+  }, [orgSlug]);
 
   function navigate(action: UiAction) {
     if (action.target === "dashboard") router.push(`/orgs/${orgSlug}/dashboard`);
@@ -43,13 +66,13 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
     event.preventDefault();
     const session = getSession();
     const text = message.trim();
-    if (!session || !text || loading) return;
+    if (!session || !text || loading || loadingHistory) return;
 
     setError("");
     setUiAction(null);
     setLoading(true);
     setStatus("Starting secure agent run");
-    setMessages((current) => [...current, { role: "user", text }]);
+    setMessages((current) => [...current, { role: "user", text, createdAt: new Date().toISOString() }]);
     setMessage("");
     try {
       await new Promise<void>((resolve, reject) => {
@@ -66,7 +89,7 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
         socket.on("tool.called", (tool: { name: string }) => setStatus(`Using ${tool.name.replaceAll("_", " ")}`));
         socket.on("tool.result", () => setStatus("Validating tool result"));
         socket.on("run.completed", (result: { output: string; uiAction?: UiAction | null }) => {
-          setMessages((current) => [...current, { role: "assistant", text: result.output }]);
+          setMessages((current) => [...current, { role: "assistant", text: result.output, createdAt: new Date().toISOString() }]);
           setUiAction(result.uiAction ?? null);
           setStatus("Completed");
           cleanup();
@@ -102,14 +125,16 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
       </div>
 
       <div className="agent-message-list" aria-live="polite">
-        {messages.length === 0 ? (
+        {loadingHistory ? <p className="muted">Loading your private conversation...</p> : null}
+        {!loadingHistory && messages.length === 0 ? (
           <div className="agent-empty-state">
             <strong>Try an operational question</strong>
             <p>“Are there any new requests?”</p>
             <p>“Give me a queue summary”</p>
             <p>“Open the new requests”</p>
           </div>
-        ) : messages.map((item, index) => (
+        ) : null}
+        {messages.map((item, index) => (
           <article className={`agent-message ${item.role}`} key={`${item.role}-${index}`}>
             <strong>{item.role === "user" ? "You" : "Assistant"}</strong>
             <p>{item.text}</p>
@@ -132,8 +157,8 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
           onChange={(event) => setMessage(event.target.value)}
           placeholder="Ask about requests, queue status, or where to go..."
         />
-        <button className="btn primary" type="submit" disabled={loading || !message.trim()}>
-          {loading ? "Working..." : "Send"}
+        <button className="btn primary" type="submit" disabled={loading || loadingHistory || !message.trim()}>
+          {loading ? "Working..." : loadingHistory ? "Loading..." : "Send"}
         </button>
       </form>
     </aside>
