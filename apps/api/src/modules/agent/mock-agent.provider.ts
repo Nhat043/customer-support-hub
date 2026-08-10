@@ -66,4 +66,21 @@ export class MockAgentProvider implements AgentProvider {
       text: `Mock agent received: ${message}. Try "list workflow" or "create task: <title>".`
     };
   }
+
+  async continueAfterTool(
+    _input: AgentProviderInput,
+    previous: AgentProviderDecision,
+    toolResult: Record<string, unknown>
+  ): Promise<AgentProviderDecision> {
+    const count = typeof toolResult.count === "number" ? toolResult.count : undefined;
+    if (previous.toolCall?.name === "list_workflow_items" && count !== undefined) {
+      return { text: `I found ${count} matching customer request${count === 1 ? "" : "s"}.` };
+    }
+    if (previous.toolCall?.name === "get_support_queue_summary") {
+      return {
+        text: `There are ${toolResult.newCount ?? 0} new, ${toolResult.overdueCount ?? 0} overdue, and ${toolResult.unassignedCount ?? 0} unassigned customer requests.`
+      };
+    }
+    return { text: "The requested workspace action was completed through the approved tool." };
+  }
 }

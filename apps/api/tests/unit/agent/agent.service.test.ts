@@ -112,6 +112,30 @@ test("agent service persists a successful function call and emits lifecycle hook
   assert.deepEqual(memoryEvents, ["remember"]);
 });
 
+test("agent service feeds a tool result back to the provider for a natural final answer", async () => {
+  const calls: string[] = [];
+  const provider: AgentProvider = {
+    complete: async () => ({
+      text: "I will check the queue.",
+      toolCall: { name: "get_support_queue_summary", arguments: {} },
+      continuation: { run: "run-1" }
+    }),
+    continueAfterTool: async (_input, previous, result) => {
+      calls.push(`${previous.toolCall?.name}:${result.item ? "item" : "summary"}`);
+      return { text: "There are 2 new requests and 1 overdue request." };
+    }
+  };
+  const { service, metricEvents } = createHarness({ provider });
+
+  const result = await service.run("org-1", "user-1", "session-1", "MEMBER", "multi-step-key", {
+    message: "Give me a queue summary"
+  });
+
+  assert.equal(result.output, "There are 2 new requests and 1 overdue request.");
+  assert.deepEqual(calls, ["get_support_queue_summary:item"]);
+  assert.deepEqual(metricEvents, ["tool:get_support_queue_summary", "run:SUCCEEDED"]);
+});
+
 test("agent service marks the run failed and emits failure hook", async () => {
   const { service, updates, hookEvents, metricEvents } = createHarness({
     provider: {

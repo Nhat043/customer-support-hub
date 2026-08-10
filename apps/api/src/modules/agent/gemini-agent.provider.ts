@@ -31,21 +31,51 @@ export class GeminiAgentProvider implements AgentProvider {
       ...(useVertex ? { project: this.config.get<string>("GOOGLE_CLOUD_PROJECT"), location: this.config.get<string>("GOOGLE_CLOUD_LOCATION", "global") } : {})
     });
     const memory = input.memory.length ? input.memory.map((entry) => `- ${entry.text}`).join("\n") : "No prior memory.";
-    const response = await client.models.generateContent({
+    const chat = client.chats.create({
       model: input.modelName,
-      contents: input.message,
       config: {
         systemInstruction: `You are a customer support workspace assistant. Follow this knowledge base exactly:\n${this.knowledge.getBaseKnowledge()}\n\nTenant memory:\n${memory}`,
         tools: [{ functionDeclarations }]
       }
     });
+    const response = await chat.sendMessage({ message: input.message });
+    return this.toDecision(response, chat);
+  }
+
+  async continueAfterTool(
+    _input: AgentProviderInput,
+    previous: AgentProviderDecision,
+    toolResult: Record<string, unknown>
+  ): Promise<AgentProviderDecision> {
+    const call = previous.toolCall;
+    const chat = previous.continuation as { sendMessage: (params: { message: unknown }) => Promise<unknown> } | undefined;
+    if (!call || !chat) {
+      throw new ServiceUnavailableException("Gemini continuation context is unavailable");
+    }
+    const response = await chat.sendMessage({
+      message: [{
+        functionResponse: {
+          ...(call.id ? { id: call.id } : {}),
+          name: call.name,
+          response: { output: toolResult }
+        }
+      }]
+    });
+    return this.toDecision(response as { functionCalls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>; text?: string }, chat);
+  }
+
+  private toDecision(
+    response: { functionCalls?: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>; text?: string },
+    continuation: unknown
+  ): AgentProviderDecision {
     const call = response.functionCalls?.[0];
     const toolCall = call?.name
-      ? { name: call.name, arguments: (call.args ?? {}) as Record<string, unknown> }
+      ? { id: call.id, name: call.name, arguments: (call.args ?? {}) as Record<string, unknown> }
       : undefined;
     return {
       text: response.text?.trim() || (toolCall ? `I will ${toolCall.name.replaceAll("_", " ")}.` : "I could not produce a response."),
-      toolCall
+      toolCall,
+      continuation
     };
   }
 }

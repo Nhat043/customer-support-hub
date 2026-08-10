@@ -1,6 +1,7 @@
 export type AgentToolCall = {
   name: string;
   arguments: Record<string, unknown>;
+  id?: string;
 };
 
 export type AgentUiAction = {
@@ -20,6 +21,7 @@ export type AgentProviderInput = {
 export type AgentProviderDecision = {
   text: string;
   toolCall?: AgentToolCall;
+  continuation?: unknown;
 };
 
 export type AgentRunHooks = {
@@ -32,6 +34,11 @@ export type AgentRunHooks = {
 
 export interface AgentProvider {
   complete(input: AgentProviderInput): Promise<AgentProviderDecision>;
+  continueAfterTool?(
+    input: AgentProviderInput,
+    previous: AgentProviderDecision,
+    toolResult: Record<string, unknown>
+  ): Promise<AgentProviderDecision>;
 }
 
 export const AGENT_PROVIDER = Symbol("AGENT_PROVIDER");

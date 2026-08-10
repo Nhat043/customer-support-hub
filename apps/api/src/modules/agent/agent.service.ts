@@ -9,6 +9,8 @@ import { CreateAgentRunDto } from "./dto/agent.dto";
 import { MetricsService } from "../../infrastructure/observability/metrics.service";
 import { AgentMemoryService } from "../../infrastructure/memory/agent-memory.service";
 
+const MAX_TOOL_STEPS = 3;
+
 @Injectable()
 export class AgentService {
   constructor(
@@ -100,16 +102,19 @@ export class AgentService {
 
     try {
       const memories = await this.memory.retrieve({ organizationId, userId, workspaceId }, dto.message);
-      const decision = await this.provider.complete({ message: dto.message, modelName, memory: memories });
+      const input = { message: dto.message, modelName, memory: memories };
+      let decision = await this.provider.complete(input);
       let toolResult: Record<string, unknown> | undefined;
       let uiAction: AgentUiAction | undefined;
-      if (decision.toolCall) {
+      const toolNames: string[] = [];
+      for (let step = 0; decision.toolCall && step < MAX_TOOL_STEPS; step += 1) {
         await hooks.onToolCalled?.({
           runId: run.id,
           name: decision.toolCall.name,
           arguments: decision.toolCall.arguments
         });
         this.metrics.recordAgentToolCall(decision.toolCall.name);
+        toolNames.push(decision.toolCall.name);
         const context: AgentToolContext = { organizationId, userId, membershipRole, workspaceId };
         toolResult = await this.tools.execute(
           decision.toolCall.name,
@@ -128,9 +133,12 @@ export class AgentService {
           }
         });
         await hooks.onToolResult?.({ runId: run.id, name: decision.toolCall.name, result: toolResult });
+
+        if (!this.provider.continueAfterTool) break;
+        decision = await this.provider.continueAfterTool(input, decision, toolResult);
       }
-      const output = toolResult
-        ? `${decision.text} Result: ${JSON.stringify(toolResult)}`
+      const output = decision.toolCall
+        ? "I stopped after the safe maximum of three tool steps. Please refine the request if you need another action."
         : decision.text;
       await this.prisma.agentMessage.create({
         data: {
@@ -153,7 +161,7 @@ export class AgentService {
         sourceType: "agent_run",
         sourceId: run.id,
         text: `User: ${dto.message}\nAssistant: ${output}`,
-        metadata: { modelName, toolName: decision.toolCall?.name ?? null }
+        metadata: { modelName, toolNames }
       });
       this.metrics.recordAgentRun("SUCCEEDED", modelName, (performance.now() - startedAt) / 1_000);
       await hooks.onCompleted?.({ runId: run.id, output, uiAction: uiAction ?? null });
