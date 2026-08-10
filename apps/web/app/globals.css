@@ -269,6 +269,8 @@ input {
 .agent-status { margin: 0; color: var(--muted); font-size: 13px; }
 .agent-composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
 .agent-composer .textarea { min-height: 74px; }
+.agent-composer-input { display: grid; gap: 6px; }
+.agent-composer-hint { color: var(--muted); font-size: 11px; }
 .agent-action { width: 100%; }
 
 @keyframes agent-drawer-in {

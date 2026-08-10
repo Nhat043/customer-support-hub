@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import { apiFetch, API_ORIGIN } from "@/lib/api";
@@ -60,6 +60,12 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
       router.push(`/orgs/${orgSlug}/workflow-items/${action.workflowItemId}`);
     }
     onClose();
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
   }
 
   async function send(event: FormEvent<HTMLFormElement>) {
@@ -150,13 +156,17 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
       <p className="agent-status">{loading ? status : status === "Ready to help" ? "Data access is limited to approved functions." : status}</p>
       {error ? <p className="error">{error}</p> : null}
       <form className="agent-composer" onSubmit={send}>
-        <textarea
-          className="textarea"
-          rows={3}
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder="Ask about requests, queue status, or where to go..."
-        />
+        <div className="agent-composer-input">
+          <textarea
+            className="textarea"
+            rows={3}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={handleComposerKeyDown}
+            placeholder="Ask about requests, queue status, or where to go..."
+          />
+          <span className="agent-composer-hint">Enter to send · Shift+Enter for a new line</span>
+        </div>
         <button className="btn primary" type="submit" disabled={loading || loadingHistory || !message.trim()}>
           {loading ? "Working..." : loadingHistory ? "Loading..." : "Send"}
         </button>
