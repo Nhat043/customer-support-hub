@@ -3,7 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import type { Prisma } from "../../../node_modules/.prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
-import { AGENT_PROVIDER, AgentProvider, AgentRunHooks } from "./agent.provider";
+import { AGENT_PROVIDER, AgentProvider, AgentRunHooks, AgentUiAction } from "./agent.provider";
 import { AgentToolContext, AgentToolsService } from "./agent-tools.service";
 import { CreateAgentRunDto } from "./dto/agent.dto";
 import { MetricsService } from "../../infrastructure/observability/metrics.service";
@@ -102,6 +102,7 @@ export class AgentService {
       const memories = await this.memory.retrieve({ organizationId, userId, workspaceId }, dto.message);
       const decision = await this.provider.complete({ message: dto.message, modelName, memory: memories });
       let toolResult: Record<string, unknown> | undefined;
+      let uiAction: AgentUiAction | undefined;
       if (decision.toolCall) {
         await hooks.onToolCalled?.({
           runId: run.id,
@@ -115,6 +116,7 @@ export class AgentService {
           context,
           decision.toolCall.arguments
         );
+        uiAction = this.readUiAction(toolResult);
         await this.prisma.agentMessage.create({
           data: {
             organizationId,
@@ -154,13 +156,14 @@ export class AgentService {
         metadata: { modelName, toolName: decision.toolCall?.name ?? null }
       });
       this.metrics.recordAgentRun("SUCCEEDED", modelName, (performance.now() - startedAt) / 1_000);
-      await hooks.onCompleted?.({ runId: run.id, output });
+      await hooks.onCompleted?.({ runId: run.id, output, uiAction: uiAction ?? null });
       return {
         runId: run.id,
         modelName,
         output,
         toolCall: decision.toolCall ?? null,
         toolResult: toolResult ?? null,
+        uiAction: uiAction ?? null,
         memoryCount: memories.length
       };
     } catch (error) {
@@ -199,5 +202,13 @@ export class AgentService {
 
   memoryHistory(organizationId: string, userId: string, workspaceId?: string) {
     return this.memory.list({ organizationId, userId, workspaceId });
+  }
+
+  private readUiAction(result: Record<string, unknown>): AgentUiAction | undefined {
+    const candidate = result.uiAction;
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return undefined;
+    const action = candidate as Partial<AgentUiAction>;
+    if (action.type !== "navigate" || !action.target || !action.label) return undefined;
+    return action as AgentUiAction;
   }
 }

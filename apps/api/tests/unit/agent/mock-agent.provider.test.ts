@@ -46,3 +46,13 @@ test("mock provider recognizes localized command aliases", async () => {
   assert.equal((await provider.complete(input(`add comment ${itemId}: Alias comment`))).toolCall?.name, "add_comment");
   assert.equal((await provider.complete(input(`bình luận ${itemId}: Vietnamese comment`))).toolCall?.name, "add_comment");
 });
+
+test("mock provider routes operational questions through summary, filters, and navigation tools", async () => {
+  const provider = new MockAgentProvider();
+  assert.equal((await provider.complete(input("Are there any new requests?"))).toolCall?.name, "list_workflow_items");
+  assert.deepEqual((await provider.complete(input("Are there any new requests?"))).toolCall?.arguments, { status: "NEW" });
+  assert.equal((await provider.complete(input("Give me a queue summary"))).toolCall?.name, "get_support_queue_summary");
+  assert.deepEqual((await provider.complete(input("Open requests"))).toolCall, {
+    name: "navigate_to", arguments: { target: "requests" }
+  });
+});

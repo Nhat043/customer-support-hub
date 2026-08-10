@@ -2,9 +2,12 @@ import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { GoogleGenAI } from "@google/genai";
 import { AgentProvider, AgentProviderDecision, AgentProviderInput } from "./agent.provider";
+import { AgentKnowledgeService } from "./agent-knowledge.service";
 
 const functionDeclarations = [
-  { name: "list_workflow_items", description: "List customer requests in the current support workspace.", parametersJsonSchema: { type: "object", properties: {} } },
+  { name: "list_workflow_items", description: "Search customer requests in the current tenant. Use this for questions about new, waiting, high-priority, or matching requests.", parametersJsonSchema: { type: "object", properties: { status: { type: "string", enum: ["NEW", "TRIAGE", "IN_PROGRESS", "WAITING", "RESOLVED", "CLOSED"] }, priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "URGENT"] }, query: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 50 } } } },
+  { name: "get_support_queue_summary", description: "Calculate open request counts, status breakdown, new, overdue, unassigned, and high-priority counts for the current tenant.", parametersJsonSchema: { type: "object", properties: {} } },
+  { name: "navigate_to", description: "Navigate only to an allow-listed UI target. Use when the user asks to open or go to a page.", parametersJsonSchema: { type: "object", properties: { target: { type: "string", enum: ["dashboard", "requests", "request_detail"] }, workflowItemId: { type: "string" }, status: { type: "string", enum: ["NEW", "TRIAGE", "IN_PROGRESS", "WAITING", "RESOLVED", "CLOSED"] }, priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "URGENT"] } }, required: ["target"] } },
   { name: "create_workflow_item", description: "Create a customer request in the current support workspace.", parametersJsonSchema: { type: "object", properties: { title: { type: "string" } }, required: ["title"] } },
   { name: "update_workflow_status", description: "Update a customer request status after first obtaining its ID.", parametersJsonSchema: { type: "object", properties: { workflowItemId: { type: "string" }, status: { type: "string", enum: ["NEW", "TRIAGE", "IN_PROGRESS", "WAITING", "RESOLVED", "CLOSED"] } }, required: ["workflowItemId", "status"] } },
   { name: "add_comment", description: "Add a support note to a customer request after first obtaining its ID.", parametersJsonSchema: { type: "object", properties: { workflowItemId: { type: "string" }, body: { type: "string" } }, required: ["workflowItemId", "body"] } }
@@ -12,7 +15,10 @@ const functionDeclarations = [
 
 @Injectable()
 export class GeminiAgentProvider implements AgentProvider {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly knowledge: AgentKnowledgeService
+  ) {}
 
   async complete(input: AgentProviderInput): Promise<AgentProviderDecision> {
     const apiKey = this.config.get<string>("GEMINI_API_KEY");
@@ -29,7 +35,7 @@ export class GeminiAgentProvider implements AgentProvider {
       model: input.modelName,
       contents: input.message,
       config: {
-        systemInstruction: `You are a customer support workspace assistant. Only use the supplied functions to change data. Never invent request IDs. Tenant memory:\n${memory}`,
+        systemInstruction: `You are a customer support workspace assistant. Follow this knowledge base exactly:\n${this.knowledge.getBaseKnowledge()}\n\nTenant memory:\n${memory}`,
         tools: [{ functionDeclarations }]
       }
     });

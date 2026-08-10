@@ -21,6 +21,7 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/apps/api/dist ./dist
 COPY --from=build /app/apps/api/package.json ./package.json
+COPY --from=build /app/apps/api/knowledge ./knowledge
 # Keep workspace symlinks and runtime packages such as reflect-metadata intact.
 COPY --from=build /app/apps/api/node_modules ./node_modules
 COPY --from=build /app/prisma /app/prisma

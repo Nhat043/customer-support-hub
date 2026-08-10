@@ -81,6 +81,8 @@ test("agent tool registry exposes all workflow tools and rejects unknown tools",
   const { tools } = toolHarness();
   assert.deepEqual(tools.listDefinitions().map((tool) => tool.name), [
     "list_workflow_items",
+    "get_support_queue_summary",
+    "navigate_to",
     "create_workflow_item",
     "update_workflow_status",
     "add_comment"
@@ -89,6 +91,74 @@ test("agent tool registry exposes all workflow tools and rejects unknown tools",
     tools.execute("missing_tool", { organizationId: "org-a", userId: "user-a", membershipRole: "MEMBER" }, {}),
     /Unknown agent tool/
   );
+});
+
+test("search tool applies allow-listed filters and returns a safe navigation action", async () => {
+  let receivedQuery: Record<string, any> | undefined;
+  const tools = new AgentToolsService({
+    workflowItem: {
+      findMany: async (query: Record<string, any>) => {
+        receivedQuery = query;
+        return [{ id: "item-1", title: "Refund", status: "NEW", priority: "HIGH", workspaceId: "workspace-a", dueAt: null, owner: null }];
+      }
+    }
+  } as any);
+
+  const result = await tools.execute("list_workflow_items", {
+    organizationId: "org-a", userId: "user-a", membershipRole: "MEMBER", workspaceId: "workspace-a"
+  }, { status: "new", priority: "high", query: "refund", limit: 10 });
+
+  assert.deepEqual(receivedQuery?.where, {
+    organizationId: "org-a",
+    workspaceId: "workspace-a",
+    status: "NEW",
+    priority: "HIGH",
+    OR: [{ title: { contains: "refund", mode: "insensitive" } }, { description: { contains: "refund", mode: "insensitive" } }]
+  });
+  assert.equal(receivedQuery?.take, 10);
+  assert.deepEqual(result.uiAction, {
+    type: "navigate",
+    target: "requests",
+    label: "Open 1 matching request",
+    filters: { status: "NEW", priority: "HIGH", query: "refund" }
+  });
+});
+
+test("queue summary calculates operational counts without exposing raw database access", async () => {
+  const tools = new AgentToolsService({
+    workflowItem: {
+      findMany: async (query: { where: { status: unknown } }) => {
+        assert.deepEqual(query.where.status, { not: "CLOSED" });
+        return [
+        { status: "NEW", priority: "HIGH", dueAt: new Date(Date.now() - 1_000), ownerId: null },
+          { status: "IN_PROGRESS", priority: "MEDIUM", dueAt: null, ownerId: "user-b" }
+        ];
+      }
+    }
+  } as any);
+
+  const result = await tools.execute("get_support_queue_summary", {
+    organizationId: "org-a", userId: "user-a", membershipRole: "MEMBER"
+  }, {});
+
+  assert.equal(result.openCount, 2);
+  assert.equal(result.newCount, 1);
+  assert.equal(result.overdueCount, 1);
+  assert.equal(result.unassignedCount, 1);
+  assert.equal(result.highPriorityCount, 1);
+});
+
+test("navigation tool only returns allow-listed destinations and verifies request tenancy", async () => {
+  const tools = new AgentToolsService({
+    workflowItem: { findFirst: async () => ({ id: "item-1", title: "Refund request" }) }
+  } as any);
+  const context = { organizationId: "org-a", userId: "user-a", membershipRole: "MEMBER" };
+
+  const requestNavigation = await tools.execute("navigate_to", context, { target: "request_detail", workflowItemId: "item-1" });
+  assert.deepEqual(requestNavigation.uiAction, {
+    type: "navigate", target: "request_detail", label: "Open request: Refund request", workflowItemId: "item-1"
+  });
+  await assert.rejects(tools.execute("navigate_to", context, { target: "https://attacker.example" }), /target must be/);
 });
 
 test("create workflow tool writes the item and CREATED event", async () => {

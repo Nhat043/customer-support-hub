@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { getSession } from "@/lib/auth";
@@ -36,6 +36,7 @@ function readableLabel(value: string) {
 
 export default function WorkflowItemsPage() {
   const params = useParams<{ orgSlug: string }>();
+  const searchParams = useSearchParams();
   const [orgSlug, setOrgSlug] = useState("demo");
   const [items, setItems] = useState<WorkflowItem[]>([]);
   const [title, setTitle] = useState("");
@@ -43,6 +44,14 @@ export default function WorkflowItemsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canEdit = getSession()?.activeMembershipRole !== "VIEWER";
+  const statusFilter = searchParams.get("status") ?? "";
+  const priorityFilter = searchParams.get("priority") ?? "";
+  const queryFilter = searchParams.get("q")?.toLowerCase() ?? "";
+  const visibleItems = items.filter((item) =>
+    (!statusFilter || item.status === statusFilter) &&
+    (!priorityFilter || item.priority === priorityFilter) &&
+    (!queryFilter || `${item.title} ${item.description ?? ""}`.toLowerCase().includes(queryFilter))
+  );
 
   useEffect(() => {
     setOrgSlug(params.orgSlug ?? "demo");
@@ -144,8 +153,12 @@ export default function WorkflowItemsPage() {
 
       {error ? <p style={{ color: "var(--danger)" }}>{error}</p> : null}
 
+      {statusFilter || priorityFilter || queryFilter ? (
+        <p className="muted">Showing {visibleItems.length} filtered request{visibleItems.length === 1 ? "" : "s"} from the assistant.</p>
+      ) : null}
+
       <div className="list">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <article key={item.id} className="card">
             <Link href={`/orgs/${orgSlug}/workflow-items/${item.id}`}>
               <strong>{item.title}</strong>
@@ -184,7 +197,7 @@ export default function WorkflowItemsPage() {
           wait for the customer, resolve, or close the request.
         </p>
         <p className="muted">
-          {items.length === 1 ? "1 request in this queue." : `${items.length} requests in this queue.`}
+          {visibleItems.length === 1 ? "1 request in this view." : `${visibleItems.length} requests in this view.`}
         </p>
       </aside>
     </section>

@@ -9,6 +9,15 @@ import {
 export class MockAgentProvider implements AgentProvider {
   async complete(input: AgentProviderInput): Promise<AgentProviderDecision> {
     const message = input.message.trim();
+    if (/(?:summary|overview|tổng quan|bao nhiêu).*(?:request|yêu cầu|support)?/i.test(message)) {
+      return { text: "I will calculate the current support queue summary.", toolCall: { name: "get_support_queue_summary", arguments: {} } };
+    }
+    if (/(?:open|go to|mở|đi tới).*(?:request|queue|yêu cầu)/i.test(message)) {
+      return { text: "I will open the customer request queue.", toolCall: { name: "navigate_to", arguments: { target: "requests" } } };
+    }
+    if (/(?:new|mới).*(?:request|yêu cầu)/i.test(message)) {
+      return { text: "I will look for new customer requests.", toolCall: { name: "list_workflow_items", arguments: { status: "NEW" } } };
+    }
     const createMatch = message.match(/^(?:create|tạo)\s+(?:workflow|task|item)\s*:\s*(.+)$/i);
     if (createMatch) {
       return {

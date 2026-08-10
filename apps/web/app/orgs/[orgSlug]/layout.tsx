@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { clearSession, getSession } from "@/lib/auth";
+import { AgentDrawer } from "@/components/agent-drawer";
 
 export default function OrgLayout({
   children
@@ -17,6 +18,7 @@ export default function OrgLayout({
   const canManageTeam = role === "OWNER" || role === "ADMIN";
   const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; readAt: string | null }>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
 
   useEffect(() => {
     const session = getSession();
@@ -63,9 +65,9 @@ export default function OrgLayout({
             <Link className="btn secondary" href={`/orgs/${params.orgSlug}/workflow-items`}>
               Customer requests
             </Link>
-            <Link className="btn secondary" href={`/orgs/${params.orgSlug}/agent`}>
-              AI helper
-            </Link>
+            <button className="btn secondary" type="button" onClick={() => setShowAssistant(true)}>
+              AI assistant
+            </button>
             {canManageTeam ? (
               <Link className="btn secondary" href={`/orgs/${params.orgSlug}/team`}>
                 Team and roles
@@ -86,6 +88,7 @@ export default function OrgLayout({
           {showNotifications ? <section className="card" style={{ position: "absolute", right: 24, top: 96, width: 340, zIndex: 2 }}><h3>Notifications</h3>{notifications.length ? notifications.map((item) => <article key={item.id} className="card"><strong>{item.title}</strong><p className="muted">{item.body}</p></article>) : <p className="muted">You are all caught up.</p>}</section> : null}
         </header>
         {children}
+        {showAssistant ? <AgentDrawer orgSlug={params.orgSlug} onClose={() => setShowAssistant(false)} /> : null}
       </div>
     </main>
   );

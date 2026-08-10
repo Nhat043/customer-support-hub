@@ -3,6 +3,14 @@ export type AgentToolCall = {
   arguments: Record<string, unknown>;
 };
 
+export type AgentUiAction = {
+  type: "navigate";
+  target: "dashboard" | "requests" | "request_detail";
+  label: string;
+  workflowItemId?: string;
+  filters?: { status?: string; priority?: string; query?: string };
+};
+
 export type AgentProviderInput = {
   message: string;
   modelName: string;
@@ -18,7 +26,7 @@ export type AgentRunHooks = {
   onStarted?: (event: { runId: string; modelName: string }) => void | Promise<void>;
   onToolCalled?: (event: { runId: string; name: string; arguments: Record<string, unknown> }) => void | Promise<void>;
   onToolResult?: (event: { runId: string; name: string; result: Record<string, unknown> }) => void | Promise<void>;
-  onCompleted?: (event: { runId: string; output: string; replayed?: boolean }) => void | Promise<void>;
+  onCompleted?: (event: { runId: string; output: string; replayed?: boolean; uiAction?: AgentUiAction | null }) => void | Promise<void>;
   onFailed?: (event: { runId: string; message: string }) => void | Promise<void>;
 };
 

@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import type { WorkflowItemStatus } from "../../../node_modules/.prisma/client";
+import type { WorkflowItemStatus, WorkflowPriority } from "../../../node_modules/.prisma/client";
+import type { AgentUiAction } from "./agent.provider";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 export type AgentToolContext = {
@@ -26,6 +27,7 @@ const workflowStatuses = new Set<string>([
   "RESOLVED",
   "CLOSED"
 ]);
+const workflowPriorities = new Set<string>(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
 @Injectable()
 export class AgentToolsService {
@@ -36,7 +38,17 @@ export class AgentToolsService {
       ["list_workflow_items", {
         name: "list_workflow_items",
         description: "List workflow items inside the current organization and optional workspace.",
-        execute: (context) => this.listWorkflowItems(context)
+        execute: (context, args) => this.listWorkflowItems(context, args)
+      }],
+      ["get_support_queue_summary", {
+        name: "get_support_queue_summary",
+        description: "Calculate request counts by status and identify new, overdue, and unassigned work inside the current tenant.",
+        execute: (context) => this.getSupportQueueSummary(context)
+      }],
+      ["navigate_to", {
+        name: "navigate_to",
+        description: "Navigate the signed-in user to an allow-listed dashboard, request queue, or tenant-owned request detail page.",
+        execute: (context, args) => this.navigateTo(context, args)
       }],
       ["create_workflow_item", {
         name: "create_workflow_item",
@@ -76,17 +88,101 @@ export class AgentToolsService {
     }
   }
 
-  private async listWorkflowItems(context: AgentToolContext) {
+  private async listWorkflowItems(context: AgentToolContext, args: Record<string, unknown>) {
+    const status = this.optionalEnum(args.status, workflowStatuses, "status") as WorkflowItemStatus | undefined;
+    const priority = this.optionalEnum(args.priority, workflowPriorities, "priority") as WorkflowPriority | undefined;
+    const query = typeof args.query === "string" ? args.query.trim().slice(0, 100) : "";
+    const limit = this.limit(args.limit);
     const items = await this.prisma.workflowItem.findMany({
       where: {
         organizationId: context.organizationId,
-        ...(context.workspaceId ? { workspaceId: context.workspaceId } : {})
+        ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+        ...(status ? { status } : {}),
+        ...(priority ? { priority } : {}),
+        ...(query ? { OR: [{ title: { contains: query, mode: "insensitive" } }, { description: { contains: query, mode: "insensitive" } }] } : {})
       },
-      select: { id: true, title: true, status: true, priority: true, workspaceId: true },
+      select: { id: true, title: true, status: true, priority: true, workspaceId: true, dueAt: true, owner: { select: { id: true, fullName: true } } },
       orderBy: { createdAt: "desc" },
-      take: 50
+      take: limit
     });
-    return { count: items.length, items };
+    const filters = { ...(status ? { status } : {}), ...(priority ? { priority } : {}), ...(query ? { query } : {}) };
+    return {
+      count: items.length,
+      items,
+      uiAction: this.navigate("requests", `Open ${items.length} matching request${items.length === 1 ? "" : "s"}`, filters)
+    };
+  }
+
+  private async getSupportQueueSummary(context: AgentToolContext) {
+    const items = await this.prisma.workflowItem.findMany({
+      where: {
+        organizationId: context.organizationId,
+        ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+        status: { not: "CLOSED" }
+      },
+      select: { status: true, priority: true, dueAt: true, ownerId: true }
+    });
+    const now = new Date();
+    const byStatus = Object.fromEntries([...workflowStatuses].map((status) => [status, 0])) as Record<string, number>;
+    for (const item of items) byStatus[item.status] = (byStatus[item.status] ?? 0) + 1;
+    const overdue = items.filter((item) => item.dueAt && item.dueAt < now).length;
+    const unassigned = items.filter((item) => !item.ownerId).length;
+    const urgent = items.filter((item) => item.priority === "URGENT" || item.priority === "HIGH").length;
+    return {
+      openCount: items.length,
+      newCount: byStatus.NEW,
+      overdueCount: overdue,
+      unassignedCount: unassigned,
+      highPriorityCount: urgent,
+      byStatus,
+      uiAction: this.navigate("requests", "Open customer request queue")
+    };
+  }
+
+  private async navigateTo(context: AgentToolContext, args: Record<string, unknown>) {
+    const target = typeof args.target === "string" ? args.target : "";
+    if (target === "dashboard") return { uiAction: this.navigate("dashboard", "Open workspace overview") };
+    if (target === "requests") {
+      const status = this.optionalEnum(args.status, workflowStatuses, "status");
+      const priority = this.optionalEnum(args.priority, workflowPriorities, "priority");
+      return { uiAction: this.navigate("requests", "Open customer request queue", { ...(status ? { status } : {}), ...(priority ? { priority } : {}) }) };
+    }
+    if (target === "request_detail") {
+      const workflowItemId = typeof args.workflowItemId === "string" ? args.workflowItemId : "";
+      if (!workflowItemId) throw new BadRequestException("workflowItemId is required for request_detail navigation");
+      const item = await this.prisma.workflowItem.findFirst({
+        where: { id: workflowItemId, organizationId: context.organizationId, ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}) },
+        select: { id: true, title: true }
+      });
+      if (!item) throw new NotFoundException("Workflow item not found");
+      return { uiAction: this.navigate("request_detail", `Open request: ${item.title}`, undefined, item.id) };
+    }
+    throw new BadRequestException("target must be dashboard, requests, or request_detail");
+  }
+
+  private optionalEnum(value: unknown, allowed: Set<string>, label: string) {
+    if (value === undefined || value === null || value === "") return undefined;
+    if (typeof value !== "string" || !allowed.has(value.toUpperCase())) {
+      throw new BadRequestException(`${label} is invalid`);
+    }
+    return value.toUpperCase();
+  }
+
+  private limit(value: unknown) {
+    if (value === undefined) return 20;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 50) {
+      throw new BadRequestException("limit must be an integer from 1 to 50");
+    }
+    return value;
+  }
+
+  private navigate(
+    target: AgentUiAction["target"],
+    label: string,
+    filters?: AgentUiAction["filters"],
+    workflowItemId?: string
+  ): AgentUiAction {
+    return { type: "navigate", target, label, ...(filters && Object.keys(filters).length ? { filters } : {}), ...(workflowItemId ? { workflowItemId } : {}) };
   }
 
   private async createWorkflowItem(context: AgentToolContext, args: Record<string, unknown>) {
