@@ -176,6 +176,66 @@ input {
   animation: agent-drawer-in 180ms ease-out;
 }
 
+.agent-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 19;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  cursor: pointer;
+  color: #061120;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #8b73ff, #65d9ee);
+  box-shadow: 0 10px 30px rgba(87, 120, 255, 0.38), 0 0 0 5px rgba(102, 217, 239, 0.1);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.agent-fab:hover,
+.agent-fab:focus-visible {
+  outline: none;
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 14px 36px rgba(87, 120, 255, 0.52), 0 0 0 7px rgba(102, 217, 239, 0.16);
+}
+
+.agent-fab svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.agent-fab-tooltip {
+  position: absolute;
+  right: 68px;
+  width: max-content;
+  padding: 8px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  color: var(--text);
+  background: rgba(13, 23, 39, 0.96);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(5px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.agent-fab:hover .agent-fab-tooltip,
+.agent-fab:focus-visible .agent-fab-tooltip {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 .agent-drawer-header {
   display: flex;
   justify-content: space-between;
@@ -218,6 +278,7 @@ input {
 
 @media (max-width: 620px) {
   .agent-drawer { top: 8px; right: 8px; bottom: 8px; width: calc(100vw - 16px); border-radius: 20px; }
+  .agent-fab { right: 18px; bottom: 18px; }
   .agent-composer { grid-template-columns: 1fr; }
 }
 

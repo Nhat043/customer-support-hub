@@ -65,9 +65,6 @@ export default function OrgLayout({
             <Link className="btn secondary" href={`/orgs/${params.orgSlug}/workflow-items`}>
               Customer requests
             </Link>
-            <button className="btn secondary" type="button" onClick={() => setShowAssistant(true)}>
-              AI assistant
-            </button>
             {canManageTeam ? (
               <Link className="btn secondary" href={`/orgs/${params.orgSlug}/team`}>
                 Team and roles
@@ -88,6 +85,21 @@ export default function OrgLayout({
           {showNotifications ? <section className="card" style={{ position: "absolute", right: 24, top: 96, width: 340, zIndex: 2 }}><h3>Notifications</h3>{notifications.length ? notifications.map((item) => <article key={item.id} className="card"><strong>{item.title}</strong><p className="muted">{item.body}</p></article>) : <p className="muted">You are all caught up.</p>}</section> : null}
         </header>
         {children}
+        {!showAssistant ? (
+          <button
+            className="agent-fab"
+            type="button"
+            aria-label="Open AI support assistant"
+            aria-expanded="false"
+            onClick={() => setShowAssistant(true)}
+          >
+            <span className="agent-fab-tooltip">Ask Support Copilot</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M6.5 18.5 3.8 21v-5.6A7.8 7.8 0 0 1 3 12c0-4.4 4-8 9-8s9 3.6 9 8-4 8-9 8a10.7 10.7 0 0 1-5.5-1.5Z" />
+              <path d="m12 7 .7 2.3L15 10l-2.3.7L12 13l-.7-2.3L9 10l2.3-.7L12 7Zm4.2 5.5.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4.4-1.1Z" />
+            </svg>
+          </button>
+        ) : null}
         {showAssistant ? <AgentDrawer orgSlug={params.orgSlug} onClose={() => setShowAssistant(false)} /> : null}
       </div>
     </main>
