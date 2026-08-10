@@ -17,7 +17,8 @@ export class GeminiAgentProvider implements AgentProvider {
   async complete(input: AgentProviderInput): Promise<AgentProviderDecision> {
     const apiKey = this.config.get<string>("GEMINI_API_KEY");
     if (!apiKey) throw new ServiceUnavailableException("Gemini is not configured");
-    const useVertex = this.config.get<string>("GEMINI_USE_VERTEX_AI", "true") === "true";
+    // API keys use the Gemini Developer API. Vertex AI instead uses OAuth/ADC.
+    const useVertex = this.config.get<string>("GEMINI_USE_VERTEX_AI", "false") === "true";
     const client = new GoogleGenAI({
       apiKey,
       vertexai: useVertex,

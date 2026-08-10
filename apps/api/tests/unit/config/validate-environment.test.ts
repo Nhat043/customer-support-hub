@@ -58,3 +58,22 @@ test("configuration accepts Gmail SMTP with an App Password", () => {
     }),
   );
 });
+
+test("Gemini API key mode does not require a Vertex AI project", () => {
+  assert.doesNotThrow(() =>
+    validateEnvironment({
+      AI_PROVIDER: "gemini",
+      GEMINI_API_KEY: "test-api-key",
+      GEMINI_USE_VERTEX_AI: "false",
+    }),
+  );
+  assert.throws(
+    () =>
+      validateEnvironment({
+        AI_PROVIDER: "gemini",
+        GEMINI_API_KEY: "test-api-key",
+        GEMINI_USE_VERTEX_AI: "true",
+      }),
+    /GOOGLE_CLOUD_PROJECT/,
+  );
+});

@@ -38,7 +38,7 @@ export function validateEnvironment(environment: Environment): Environment {
 
   if (environment.AI_PROVIDER === "gemini") {
     if (!environment.GEMINI_API_KEY) errors.push("GEMINI_API_KEY is required when AI_PROVIDER=gemini");
-    if (environment.GEMINI_USE_VERTEX_AI !== "false" && !environment.GOOGLE_CLOUD_PROJECT) {
+    if (environment.GEMINI_USE_VERTEX_AI === "true" && !environment.GOOGLE_CLOUD_PROJECT) {
       errors.push("GOOGLE_CLOUD_PROJECT is required for Gemini Vertex AI");
     }
   }
