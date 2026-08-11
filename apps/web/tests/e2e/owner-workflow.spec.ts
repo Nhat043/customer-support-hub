@@ -3,12 +3,13 @@ import { expect, test } from "@playwright/test";
 test("owner can create a workspace, add a request, and query it through the copilot", async ({ page }) => {
   const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  await page.goto("/");
-  await page.getByRole("link", { name: "Create company workspace" }).click();
-  await page.getByPlaceholder("Your full name").fill("E2E Owner");
+  // This scenario verifies registration rather than client-side landing-page navigation.
+  await page.goto("/register");
+  await expect(page).toHaveURL(/\/register$/);
+  await page.getByLabel("Full name").fill("E2E Owner");
   await page.getByLabel("Work email").fill(`owner-${unique}@example.test`);
-  await page.getByPlaceholder("Create a password").fill("E2EOwnerPassword123!");
-  await page.getByPlaceholder("Company name").fill(`E2E Support ${unique}`);
+  await page.getByLabel("Create a password").fill("E2EOwnerPassword123!");
+  await page.getByLabel("Company name").fill(`E2E Support ${unique}`);
   await page.getByRole("button", { name: "Create company workspace" }).click();
 
   await expect(page).toHaveURL(/\/orgs\/[^/]+\/dashboard$/);

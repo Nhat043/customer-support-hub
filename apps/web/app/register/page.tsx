@@ -103,7 +103,10 @@ function RegisterContent() {
               : "You will become the workspace owner. Use this page only when setting up Customer Support Hub for a new company."}
           </p>
           <form className="grid" onSubmit={submit}>
-            <input className="input" placeholder="Your full name" value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={2} autoComplete="name" />
+            <label className="grid">
+              <span>Full name</span>
+              <input className="input" placeholder="Your full name" value={fullName} onChange={(event) => setFullName(event.target.value)} required minLength={2} autoComplete="name" />
+            </label>
             <label className="grid">
               <span>{invitationToken ? "Invitation email" : "Work email"}</span>
               <input
@@ -119,9 +122,15 @@ function RegisterContent() {
               />
             </label>
             {invitationToken && invitationEmail ? <p className="muted">This email is locked to the invitation recipient.</p> : null}
-            <input className="input" type="password" placeholder="Create a password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="new-password" />
+            <label className="grid">
+              <span>Create a password</span>
+              <input className="input" type="password" placeholder="Create a password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="new-password" />
+            </label>
             {!invitationToken ? (
-              <input className="input" placeholder="Company name" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} required minLength={2} />
+              <label className="grid">
+                <span>Company name</span>
+                <input className="input" placeholder="Company name" value={organizationName} onChange={(event) => setOrganizationName(event.target.value)} required minLength={2} />
+              </label>
             ) : null}
             {error ? <p className="form-error">We could not create this account. Check the details and try again.</p> : null}
             <button className="btn primary" disabled={loading || invitationLoading || Boolean(invitationToken && !invitationEmail)} type="submit">
