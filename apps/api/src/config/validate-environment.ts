@@ -42,6 +42,12 @@ export function validateEnvironment(environment: Environment): Environment {
       errors.push("GOOGLE_CLOUD_PROJECT is required for Gemini Vertex AI");
     }
   }
+  if (environment.EMBEDDING_PROVIDER === "gemini" && !environment.GEMINI_API_KEY) {
+    errors.push("GEMINI_API_KEY is required when EMBEDDING_PROVIDER=gemini");
+  }
+  if (environment.EMBEDDING_DIMENSIONS && (!/^\d+$/.test(environment.EMBEDDING_DIMENSIONS) || Number(environment.EMBEDDING_DIMENSIONS) < 1)) {
+    errors.push("EMBEDDING_DIMENSIONS must be a positive integer");
+  }
 
   for (const variable of [
     "ACCESS_TOKEN_TTL",

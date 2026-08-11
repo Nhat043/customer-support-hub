@@ -55,7 +55,7 @@ export class AgentService {
         replayed: true
       };
     }
-    const workspaceId = dto.workspaceId ?? undefined;
+    const workspaceId = dto.workspaceId ?? await this.activeWorkspaceId(organizationId, userId, sessionId);
     if (workspaceId) {
       const workspace = await this.prisma.workspace.findFirst({
         where: { id: workspaceId, organizationId },
@@ -74,6 +74,8 @@ export class AgentService {
       });
       if (!item) throw new NotFoundException("Workflow item not found");
     }
+
+    const conversation = await this.recentConversation(organizationId, userId, workspaceId);
 
     const modelName = this.config.get<string>("AI_MODEL", "mock-function-caller");
     const run = await this.prisma.agentRun.create({
@@ -102,7 +104,7 @@ export class AgentService {
 
     try {
       const memories = await this.memory.retrieve({ organizationId, userId, workspaceId }, dto.message);
-      const input = { message: dto.message, modelName, memory: memories };
+      const input = { message: dto.message, modelName, memory: memories, conversation };
       let decision = await this.provider.complete(input);
       let toolResult: Record<string, unknown> | undefined;
       let uiAction: AgentUiAction | undefined;
@@ -239,6 +241,43 @@ export class AgentService {
 
   memoryHistory(organizationId: string, userId: string, workspaceId?: string) {
     return this.memory.list({ organizationId, userId, workspaceId });
+  }
+
+  async clearConversation(organizationId: string, userId: string, workspaceId?: string) {
+    const where = { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) };
+    const deletedMemoryCount = await this.memory.clear(where);
+    const deletedRuns = await this.prisma.agentRun.deleteMany({ where });
+    return { deletedRuns: deletedRuns.count, deletedMemoryCount };
+  }
+
+  private async recentConversation(organizationId: string, userId: string, workspaceId?: string) {
+    const runs = await this.prisma.agentRun.findMany({
+      where: { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) },
+      select: {
+        startedAt: true,
+        messages: {
+          where: { role: { in: ["USER", "ASSISTANT"] } },
+          select: { role: true, content: true, createdAt: true },
+          orderBy: { createdAt: "asc" }
+        }
+      },
+      orderBy: { startedAt: "desc" },
+      take: 5
+    });
+    return runs.reverse().flatMap((run) => run.messages.flatMap((message) => {
+      const text = this.messageText(message.content);
+      if (!text) return [];
+      return [{ role: message.role === "USER" ? "user" as const : "assistant" as const, text }];
+    })).slice(-10);
+  }
+
+  private async activeWorkspaceId(organizationId: string, userId: string, sessionId?: string) {
+    if (!sessionId) return undefined;
+    const session = await this.prisma.session.findFirst({
+      where: { id: sessionId, userId, organizationId },
+      select: { workspaceId: true }
+    });
+    return session?.workspaceId ?? undefined;
   }
 
   private readUiAction(result: Record<string, unknown>): AgentUiAction | undefined {

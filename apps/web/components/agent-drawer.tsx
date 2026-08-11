@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, KeyboardEvent, ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import { apiFetch, API_ORIGIN } from "@/lib/api";
@@ -15,6 +15,30 @@ type UiAction = {
   filters?: { status?: string; priority?: string; query?: string };
 };
 
+function renderInlineMarkdown(text: string): ReactNode {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((segment, index) => {
+    if (segment.startsWith("**") && segment.endsWith("**")) {
+      return <strong key={index}>{segment.slice(2, -2)}</strong>;
+    }
+    return <Fragment key={index}>{segment}</Fragment>;
+  });
+}
+
+function AssistantMessage({ text }: { text: string }) {
+  return (
+    <div className="agent-message-content">
+      {text.split("\n").map((line, index) => {
+        const listItem = line.match(/^\s*(?:[-*]|\d+\.)\s+(.+)$/);
+        if (listItem) {
+          return <div className="agent-message-list-item" key={index}>{renderInlineMarkdown(listItem[1]!)}</div>;
+        }
+        if (!line.trim()) return <div className="agent-message-spacer" key={index} />;
+        return <p key={index}>{renderInlineMarkdown(line)}</p>;
+      })}
+    </div>
+  );
+}
+
 export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: () => void }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
@@ -24,6 +48,8 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
   const [status, setStatus] = useState("Ready to help");
   const [error, setError] = useState("");
   const [uiAction, setUiAction] = useState<UiAction | null>(null);
+  const [confirmNewChat, setConfirmNewChat] = useState(false);
+  const [clearingConversation, setClearingConversation] = useState(false);
 
   useEffect(() => {
     const session = getSession();
@@ -59,13 +85,33 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
     if (action.target === "request_detail" && action.workflowItemId) {
       router.push(`/orgs/${orgSlug}/workflow-items/${action.workflowItemId}`);
     }
-    onClose();
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
+  }
+
+  async function startNewChat() {
+    const session = getSession();
+    if (!session || clearingConversation || loading) return;
+    setClearingConversation(true);
+    setError("");
+    try {
+      await apiFetch(`/orgs/${orgSlug}/agent/conversation`, {
+        method: "DELETE",
+        accessToken: session.accessToken
+      });
+      setMessages([]);
+      setUiAction(null);
+      setConfirmNewChat(false);
+      setStatus("New chat started");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not clear the conversation.");
+    } finally {
+      setClearingConversation(false);
+    }
   }
 
   async function send(event: FormEvent<HTMLFormElement>) {
@@ -121,13 +167,28 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
 
   return (
     <aside className="agent-drawer" aria-label="AI support assistant">
-      <div className="agent-drawer-header">
-        <div>
-          <span className="badge">AI assistant</span>
-          <h2>Support copilot</h2>
-          <p className="muted">Uses approved tools, tenant-scoped data, and workspace knowledge.</p>
+      <div className="agent-drawer-top">
+        <div className="agent-drawer-header">
+          <div>
+            <span className="badge">AI assistant</span>
+            <h2>Support copilot</h2>
+            <p className="muted">Uses approved tools, tenant-scoped data, and workspace knowledge.</p>
+          </div>
+          <div className="agent-drawer-actions">
+            <button className="btn secondary compact" type="button" disabled={loading || loadingHistory || clearingConversation} onClick={() => setConfirmNewChat(true)}>New chat</button>
+            <button className="btn secondary compact" type="button" onClick={onClose}>Close</button>
+          </div>
         </div>
-        <button className="btn secondary compact" type="button" onClick={onClose}>Close</button>
+        {confirmNewChat ? (
+          <section className="agent-new-chat-warning" role="alertdialog" aria-label="Confirm new chat">
+            <strong>Start a new chat?</strong>
+            <p>This permanently deletes your messages and private AI memory for this workspace. Customer requests and team data will not be changed.</p>
+            <div>
+              <button className="btn secondary compact" type="button" disabled={clearingConversation} onClick={() => setConfirmNewChat(false)}>Keep chat</button>
+              <button className="btn danger compact" type="button" disabled={clearingConversation} onClick={() => void startNewChat()}>{clearingConversation ? "Clearing..." : "Delete and start new"}</button>
+            </div>
+          </section>
+        ) : null}
       </div>
 
       <div className="agent-message-list" aria-live="polite">
@@ -143,7 +204,7 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
         {messages.map((item, index) => (
           <article className={`agent-message ${item.role}`} key={`${item.role}-${index}`}>
             <strong>{item.role === "user" ? "You" : "Assistant"}</strong>
-            <p>{item.text}</p>
+            {item.role === "assistant" ? <AssistantMessage text={item.text} /> : <p>{item.text}</p>}
           </article>
         ))}
       </div>

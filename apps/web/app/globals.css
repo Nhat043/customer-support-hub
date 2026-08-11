@@ -120,6 +120,12 @@ input {
   color: var(--text);
 }
 
+.btn.danger {
+  background: rgba(255, 107, 107, 0.14);
+  border-color: rgba(255, 107, 107, 0.52);
+  color: #ffb2b2;
+}
+
 .btn.compact {
   border-radius: 12px;
   padding: 10px 14px;
@@ -245,6 +251,11 @@ input {
 
 .agent-drawer-header h2 { margin: 10px 0 6px; }
 .agent-drawer-header p { margin: 0; font-size: 14px; line-height: 1.45; }
+.agent-drawer-top { display: grid; gap: 12px; }
+.agent-drawer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.agent-new-chat-warning { display: grid; gap: 10px; padding: 14px; border: 1px solid rgba(255, 184, 77, 0.58); border-radius: 16px; background: rgba(111, 73, 18, 0.19); }
+.agent-new-chat-warning p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.agent-new-chat-warning > div { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .agent-message-list {
   min-height: 0;
@@ -264,6 +275,11 @@ input {
 
 .agent-message.user { background: rgba(124, 92, 255, 0.16); }
 .agent-message p { margin: 6px 0 0; white-space: pre-wrap; line-height: 1.5; }
+.agent-message-content { display: grid; gap: 6px; margin-top: 6px; line-height: 1.5; }
+.agent-message-content p { margin: 0; white-space: pre-wrap; }
+.agent-message-list-item { position: relative; padding-left: 15px; }
+.agent-message-list-item::before { content: "•"; position: absolute; left: 1px; color: var(--accent); }
+.agent-message-spacer { height: 3px; }
 .agent-empty-state { padding: 18px; border: 1px dashed var(--panel-border); border-radius: 16px; color: var(--muted); }
 .agent-empty-state p { margin: 9px 0 0; }
 .agent-status { margin: 0; color: var(--muted); font-size: 13px; }

@@ -32,9 +32,12 @@ services:
       REDIS_URL: redis://redis:6379
       VECTOR_STORE: qdrant
       QDRANT_URL: http://qdrant:6333
-      QDRANT_COLLECTION: agent_memory
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-agent_memory_semantic_v1}
       AI_PROVIDER: ${AI_PROVIDER:-mock}
       AI_MODEL: ${AI_MODEL:-mock-function-caller}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-gemini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-768}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_USE_VERTEX_AI: ${GEMINI_USE_VERTEX_AI:-false}
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}

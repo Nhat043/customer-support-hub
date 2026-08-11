@@ -40,6 +40,11 @@ export class AgentToolsService {
         description: "List workflow items inside the current organization and optional workspace.",
         execute: (context, args) => this.listWorkflowItems(context, args)
       }],
+      ["get_workflow_item", {
+        name: "get_workflow_item",
+        description: "Read the complete tenant-scoped details of one customer request by its workflow item ID.",
+        execute: (context, args) => this.getWorkflowItem(context, args)
+      }],
       ["get_support_queue_summary", {
         name: "get_support_queue_summary",
         description: "Calculate request counts by status and identify new, overdue, and unassigned work inside the current tenant.",
@@ -136,6 +141,39 @@ export class AgentToolsService {
       highPriorityCount: urgent,
       byStatus,
       uiAction: this.navigate("requests", "Open customer request queue")
+    };
+  }
+
+  private async getWorkflowItem(context: AgentToolContext, args: Record<string, unknown>) {
+    const workflowItemId = typeof args.workflowItemId === "string" ? args.workflowItemId : "";
+    if (!workflowItemId) throw new BadRequestException("workflowItemId is required");
+    const item = await this.prisma.workflowItem.findFirst({
+      where: {
+        id: workflowItemId,
+        organizationId: context.organizationId,
+        ...(context.workspaceId ? { workspaceId: context.workspaceId } : {})
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        priority: true,
+        dueAt: true,
+        createdAt: true,
+        updatedAt: true,
+        owner: { select: { id: true, fullName: true } },
+        comments: {
+          select: { body: true, createdAt: true, authorType: true, authorUser: { select: { fullName: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 5
+        }
+      }
+    });
+    if (!item) throw new NotFoundException("Workflow item not found");
+    return {
+      item,
+      uiAction: this.navigate("request_detail", `Open request: ${item.title}`, undefined, item.id)
     };
   }
 

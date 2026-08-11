@@ -16,6 +16,7 @@ export type AgentProviderInput = {
   message: string;
   modelName: string;
   memory: Array<{ id: string; text: string; score: number; sourceType: string; sourceId?: string }>;
+  conversation: Array<{ role: "user" | "assistant"; text: string }>;
 };
 
 export type AgentProviderDecision = {

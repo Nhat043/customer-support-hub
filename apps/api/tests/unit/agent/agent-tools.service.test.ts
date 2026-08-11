@@ -81,6 +81,7 @@ test("agent tool registry exposes all workflow tools and rejects unknown tools",
   const { tools } = toolHarness();
   assert.deepEqual(tools.listDefinitions().map((tool) => tool.name), [
     "list_workflow_items",
+    "get_workflow_item",
     "get_support_queue_summary",
     "navigate_to",
     "create_workflow_item",
@@ -91,6 +92,39 @@ test("agent tool registry exposes all workflow tools and rejects unknown tools",
     tools.execute("missing_tool", { organizationId: "org-a", userId: "user-a", membershipRole: "MEMBER" }, {}),
     /Unknown agent tool/
   );
+});
+
+test("request detail tool reads only the selected tenant-owned request and returns safe navigation", async () => {
+  let receivedWhere: unknown;
+  const tools = new AgentToolsService({
+    workflowItem: {
+      findFirst: async (query: { where: unknown }) => {
+        receivedWhere = query.where;
+        return {
+          id: "item-1",
+          title: "Delayed delivery",
+          description: "Order has not arrived.",
+          status: "NEW",
+          priority: "HIGH",
+          dueAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          owner: null,
+          comments: []
+        };
+      }
+    }
+  } as any);
+
+  const result = await tools.execute("get_workflow_item", {
+    organizationId: "org-a", userId: "user-a", membershipRole: "MEMBER", workspaceId: "workspace-a"
+  }, { workflowItemId: "item-1" });
+
+  assert.deepEqual(receivedWhere, { id: "item-1", organizationId: "org-a", workspaceId: "workspace-a" });
+  assert.equal((result.item as any).description, "Order has not arrived.");
+  assert.deepEqual(result.uiAction, {
+    type: "navigate", target: "request_detail", label: "Open request: Delayed delivery", workflowItemId: "item-1"
+  });
 });
 
 test("search tool applies allow-listed filters and returns a safe navigation action", async () => {

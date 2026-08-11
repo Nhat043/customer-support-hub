@@ -30,6 +30,10 @@ export class InMemoryVectorStore implements VectorStore {
       .sort((left, right) => right.score - left.score)
       .slice(0, limit);
   }
+
+  async delete(ids: string[]): Promise<void> {
+    ids.forEach((id) => this.points.delete(id));
+  }
 }
 
 function cosineSimilarity(left: number[], right: number[]) {

@@ -18,14 +18,14 @@ export class WorkflowItemsController {
   list(@Req() req: any) {
     return this.workflowItemsService.list(
       req.organization.id,
-      typeof req.query.workspaceId === "string" ? req.query.workspaceId : undefined
+      typeof req.query.workspaceId === "string" ? req.query.workspaceId : req.session?.workspaceId
     );
   }
 
   @Post()
   @Roles("OWNER", "ADMIN", "MEMBER")
   create(@Req() req: any, @Body() dto: CreateWorkflowItemDto) {
-    return this.workflowItemsService.create(req.organization.id, req.user.userId, dto);
+    return this.workflowItemsService.create(req.organization.id, req.user.userId, dto, req.session?.workspaceId);
   }
 
   @Get(":id")

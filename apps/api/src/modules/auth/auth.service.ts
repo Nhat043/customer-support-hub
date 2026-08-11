@@ -458,11 +458,19 @@ export class AuthService {
       "90d",
     );
     const expiresAt = this.nextRefreshExpiry(now, absoluteExpiresAt);
+    const workspace = organizationId
+      ? await this.prisma.workspace.findFirst({
+          where: { organizationId, status: "ACTIVE" },
+          select: { id: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : null;
     const session = await this.prisma.$transaction(async (tx) => {
       const created = await tx.session.create({
         data: {
           userId,
           organizationId,
+          workspaceId: workspace?.id,
           refreshTokenHash: this.hashToken(refreshToken),
           status: SessionStatus.ACTIVE,
           expiresAt,

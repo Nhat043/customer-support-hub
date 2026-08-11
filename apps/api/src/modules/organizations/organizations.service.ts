@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 
 @Injectable()
@@ -60,11 +60,15 @@ export class OrganizationsService {
   }
 
   async switchActive(sessionId: string, organizationId: string, workspaceId?: string | null) {
+    const workspace = workspaceId
+      ? await this.prisma.workspace.findFirst({ where: { id: workspaceId, organizationId, status: "ACTIVE" }, select: { id: true } })
+      : await this.prisma.workspace.findFirst({ where: { organizationId, status: "ACTIVE" }, select: { id: true }, orderBy: { createdAt: "asc" } });
+    if (!workspace) throw new NotFoundException("Active workspace not found");
     return this.prisma.session.update({
       where: { id: sessionId },
       data: {
         organizationId,
-        workspaceId: workspaceId ?? null
+        workspaceId: workspace.id
       }
     });
   }

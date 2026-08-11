@@ -18,6 +18,7 @@ export interface VectorStore {
   readonly name: string;
   upsert(point: MemoryVectorPoint): Promise<void>;
   search(vector: number[], filter: MemoryVectorFilter, limit: number): Promise<MemoryVectorMatch[]>;
+  delete(ids: string[]): Promise<void>;
 }
 
 export const VECTOR_STORE = Symbol("VECTOR_STORE");

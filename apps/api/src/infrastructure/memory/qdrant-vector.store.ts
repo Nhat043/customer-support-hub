@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { EMBEDDING_DIMENSIONS } from "./embedding.provider";
 import { MemoryVectorFilter, MemoryVectorMatch, MemoryVectorPoint, VectorStore } from "./vector-store";
 
 @Injectable()
@@ -10,7 +9,8 @@ export class QdrantVectorStore implements VectorStore {
 
   constructor(
     private readonly client: QdrantClient,
-    private readonly collectionName: string
+    private readonly collectionName: string,
+    private readonly dimensions: number
   ) {}
 
   async upsert(point: MemoryVectorPoint): Promise<void> {
@@ -60,14 +60,30 @@ export class QdrantVectorStore implements VectorStore {
     });
   }
 
+  async delete(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await this.ensureCollection();
+    await this.client.delete(this.collectionName, { wait: true, points: ids });
+  }
+
   private async ensureCollection() {
     if (this.initialized) return;
+    let collection;
     try {
-      await this.client.getCollection(this.collectionName);
+      collection = await this.client.getCollection(this.collectionName);
     } catch {
       await this.client.createCollection(this.collectionName, {
-        vectors: { size: EMBEDDING_DIMENSIONS, distance: "Cosine" }
+        vectors: { size: this.dimensions, distance: "Cosine" }
       });
+      this.initialized = true;
+      return;
+    }
+    const vectors = collection.config.params.vectors;
+    const size = vectors && !Array.isArray(vectors) && "size" in vectors ? vectors.size : undefined;
+    if (size !== this.dimensions) {
+      throw new Error(
+        `Qdrant collection ${this.collectionName} has dimension ${size}; expected ${this.dimensions}. Use a new collection name for a new embedding model.`
+      );
     }
     this.initialized = true;
   }

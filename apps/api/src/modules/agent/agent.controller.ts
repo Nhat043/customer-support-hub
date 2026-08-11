@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
@@ -28,6 +28,13 @@ export class AgentController {
   @ApiOperation({ summary: "Load the authenticated user's private agent conversation for this tenant" })
   conversation(@Req() req: any, @Query("workspaceId") workspaceId?: string) {
     return this.agentService.conversation(req.organization.id, req.user.userId, workspaceId);
+  }
+
+  @Delete("conversation")
+  @Roles("OWNER", "ADMIN", "MEMBER")
+  @ApiOperation({ summary: "Permanently clear the authenticated user's private agent conversation and semantic memory" })
+  clearConversation(@Req() req: any, @Query("workspaceId") workspaceId?: string) {
+    return this.agentService.clearConversation(req.organization.id, req.user.userId, workspaceId);
   }
 
   @Get("memory")
