@@ -1,12 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { MODULE_METADATA } from "@nestjs/common/constants";
 import { AgentMemoryService } from "../../../../src/infrastructure/memory/agent-memory.service";
 import {
   DETERMINISTIC_EMBEDDING_DIMENSIONS,
-  DeterministicEmbeddingProvider
+  DeterministicEmbeddingProvider,
+  EMBEDDING_PROVIDER
 } from "../../../../src/infrastructure/memory/embedding.provider";
 import { InMemoryVectorStore } from "../../../../src/infrastructure/memory/in-memory-vector.store";
+import { MemoryModule } from "../../../../src/infrastructure/memory/memory.module";
 import { QdrantVectorStore } from "../../../../src/infrastructure/memory/qdrant-vector.store";
+import { VECTOR_STORE } from "../../../../src/infrastructure/memory/vector-store";
+
+test("memory module exports shared embedding and vector providers", () => {
+  const exports = Reflect.getMetadata(MODULE_METADATA.EXPORTS, MemoryModule) as unknown[];
+
+  assert.ok(exports.includes(EMBEDDING_PROVIDER));
+  assert.ok(exports.includes(VECTOR_STORE));
+});
 
 test("deterministic embedding is stable and normalized", async () => {
   const embeddings = new DeterministicEmbeddingProvider();

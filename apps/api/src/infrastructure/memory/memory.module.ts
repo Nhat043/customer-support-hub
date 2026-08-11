@@ -46,6 +46,7 @@ import { VECTOR_STORE } from "./vector-store";
       }
     }
   ],
-  exports: [AgentMemoryService]
+  // Other modules use the same scoped embedding and vector infrastructure.
+  exports: [AgentMemoryService, EMBEDDING_PROVIDER, VECTOR_STORE]
 })
 export class MemoryModule {}
