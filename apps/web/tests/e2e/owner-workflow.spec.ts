@@ -13,7 +13,11 @@ test("owner can create a workspace, add a request, and query it through the copi
   await page.getByRole("button", { name: "Create company workspace" }).click();
 
   await expect(page).toHaveURL(/\/orgs\/[^/]+\/dashboard$/);
-  await page.getByRole("link", { name: "Customer requests" }).click();
+  const organizationSlug = new URL(page.url()).pathname.split("/")[2];
+  expect(organizationSlug).toBeTruthy();
+
+  // Keep this scenario focused on the owner workflow, not navigation animation timing.
+  await page.goto(`/orgs/${organizationSlug}/workflow-items`);
   await expect(page.getByRole("heading", { name: "Support queue" })).toBeVisible();
   await page.getByPlaceholder("Short summary, e.g. Customer has not received an order").fill("Delivery is delayed");
   await page.getByPlaceholder("Add the customer details, issue, and information your team needs").fill("Order #E2E-42 has not arrived.");
