@@ -144,6 +144,7 @@ Local endpoints:
 ```bash
 pnpm lint
 pnpm --filter @customer-support-hub/api test:coverage
+pnpm --filter @customer-support-hub/api test:eval
 pnpm build
 pnpm exec prisma validate --schema prisma/schema.prisma
 ```
@@ -167,6 +168,10 @@ pnpm --filter @customer-support-hub/web test:e2e
 ```
 
 GitHub Actions provisions PostgreSQL, Redis, and Qdrant for integration and browser checks on pull requests and pushes to `main`.
+
+### Agent Security Evaluations
+
+`pnpm --filter @customer-support-hub/api test:eval` is a deterministic suite that checks function-tool routing, allow-listed navigation, tenant and workspace scoping, Viewer mutation denial, and prompt-injection resistance. It uses the local mock provider, so it runs without an AI API key or a running application.
 
 ## Gemini Semantic Memory
 

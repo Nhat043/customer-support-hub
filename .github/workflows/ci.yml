@@ -98,6 +98,9 @@ jobs:
       - name: Run API unit tests and enforce coverage
         run: pnpm --filter @customer-support-hub/api test:coverage
 
+      - name: Run deterministic agent security evaluations
+        run: pnpm --filter @customer-support-hub/api test:eval
+
       - name: Build monorepo
         run: pnpm build
 
