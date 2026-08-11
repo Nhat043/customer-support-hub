@@ -58,3 +58,40 @@ test("configuration accepts Gmail SMTP with an App Password", () => {
     }),
   );
 });
+
+test("Gemini API key mode does not require a Vertex AI project", () => {
+  assert.doesNotThrow(() =>
+    validateEnvironment({
+      AI_PROVIDER: "gemini",
+      GEMINI_API_KEY: "test-api-key",
+      GEMINI_USE_VERTEX_AI: "false",
+    }),
+  );
+  assert.throws(
+    () =>
+      validateEnvironment({
+        AI_PROVIDER: "gemini",
+        GEMINI_API_KEY: "test-api-key",
+        GEMINI_USE_VERTEX_AI: "true",
+      }),
+    /GOOGLE_CLOUD_PROJECT/,
+  );
+});
+
+test("semantic Gemini memory requires an API key and valid dimensions", () => {
+  assert.throws(
+    () => validateEnvironment({ EMBEDDING_PROVIDER: "gemini" }),
+    /GEMINI_API_KEY is required when EMBEDDING_PROVIDER=gemini/,
+  );
+  assert.throws(
+    () => validateEnvironment({ EMBEDDING_DIMENSIONS: "768.5" }),
+    /EMBEDDING_DIMENSIONS/,
+  );
+  assert.doesNotThrow(() =>
+    validateEnvironment({
+      EMBEDDING_PROVIDER: "gemini",
+      GEMINI_API_KEY: "test-api-key",
+      EMBEDDING_DIMENSIONS: "768",
+    }),
+  );
+});

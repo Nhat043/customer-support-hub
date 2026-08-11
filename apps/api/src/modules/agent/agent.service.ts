@@ -3,11 +3,13 @@ import { ConfigService } from "@nestjs/config";
 import type { Prisma } from "../../../node_modules/.prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
-import { AGENT_PROVIDER, AgentProvider, AgentRunHooks } from "./agent.provider";
+import { AGENT_PROVIDER, AgentProvider, AgentRunHooks, AgentUiAction } from "./agent.provider";
 import { AgentToolContext, AgentToolsService } from "./agent-tools.service";
 import { CreateAgentRunDto } from "./dto/agent.dto";
 import { MetricsService } from "../../infrastructure/observability/metrics.service";
 import { AgentMemoryService } from "../../infrastructure/memory/agent-memory.service";
+
+const MAX_TOOL_STEPS = 3;
 
 @Injectable()
 export class AgentService {
@@ -53,7 +55,7 @@ export class AgentService {
         replayed: true
       };
     }
-    const workspaceId = dto.workspaceId ?? undefined;
+    const workspaceId = dto.workspaceId ?? await this.activeWorkspaceId(organizationId, userId, sessionId);
     if (workspaceId) {
       const workspace = await this.prisma.workspace.findFirst({
         where: { id: workspaceId, organizationId },
@@ -72,6 +74,8 @@ export class AgentService {
       });
       if (!item) throw new NotFoundException("Workflow item not found");
     }
+
+    const conversation = await this.recentConversation(organizationId, userId, workspaceId);
 
     const modelName = this.config.get<string>("AI_MODEL", "mock-function-caller");
     const run = await this.prisma.agentRun.create({
@@ -100,21 +104,26 @@ export class AgentService {
 
     try {
       const memories = await this.memory.retrieve({ organizationId, userId, workspaceId }, dto.message);
-      const decision = await this.provider.complete({ message: dto.message, modelName, memory: memories });
+      const input = { message: dto.message, modelName, memory: memories, conversation };
+      let decision = await this.provider.complete(input);
       let toolResult: Record<string, unknown> | undefined;
-      if (decision.toolCall) {
+      let uiAction: AgentUiAction | undefined;
+      const toolNames: string[] = [];
+      for (let step = 0; decision.toolCall && step < MAX_TOOL_STEPS; step += 1) {
         await hooks.onToolCalled?.({
           runId: run.id,
           name: decision.toolCall.name,
           arguments: decision.toolCall.arguments
         });
         this.metrics.recordAgentToolCall(decision.toolCall.name);
+        toolNames.push(decision.toolCall.name);
         const context: AgentToolContext = { organizationId, userId, membershipRole, workspaceId };
         toolResult = await this.tools.execute(
           decision.toolCall.name,
           context,
           decision.toolCall.arguments
         );
+        uiAction = this.readUiAction(toolResult);
         await this.prisma.agentMessage.create({
           data: {
             organizationId,
@@ -126,9 +135,12 @@ export class AgentService {
           }
         });
         await hooks.onToolResult?.({ runId: run.id, name: decision.toolCall.name, result: toolResult });
+
+        if (!this.provider.continueAfterTool) break;
+        decision = await this.provider.continueAfterTool(input, decision, toolResult);
       }
-      const output = toolResult
-        ? `${decision.text} Result: ${JSON.stringify(toolResult)}`
+      const output = decision.toolCall
+        ? "I stopped after the safe maximum of three tool steps. Please refine the request if you need another action."
         : decision.text;
       await this.prisma.agentMessage.create({
         data: {
@@ -151,16 +163,17 @@ export class AgentService {
         sourceType: "agent_run",
         sourceId: run.id,
         text: `User: ${dto.message}\nAssistant: ${output}`,
-        metadata: { modelName, toolName: decision.toolCall?.name ?? null }
+        metadata: { modelName, toolNames }
       });
       this.metrics.recordAgentRun("SUCCEEDED", modelName, (performance.now() - startedAt) / 1_000);
-      await hooks.onCompleted?.({ runId: run.id, output });
+      await hooks.onCompleted?.({ runId: run.id, output, uiAction: uiAction ?? null });
       return {
         runId: run.id,
         modelName,
         output,
         toolCall: decision.toolCall ?? null,
         toolResult: toolResult ?? null,
+        uiAction: uiAction ?? null,
         memoryCount: memories.length
       };
     } catch (error) {
@@ -179,9 +192,9 @@ export class AgentService {
     return { provider: this.config.get<string>("AI_PROVIDER", "mock"), tools: this.tools.listDefinitions() };
   }
 
-  history(organizationId: string, workspaceId?: string) {
+  history(organizationId: string, userId: string, workspaceId?: string) {
     return this.prisma.agentRun.findMany({
-      where: { organizationId, ...(workspaceId ? { workspaceId } : {}) },
+      where: { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) },
       select: {
         id: true,
         workspaceId: true,
@@ -197,7 +210,87 @@ export class AgentService {
     });
   }
 
+  async conversation(organizationId: string, userId: string, workspaceId?: string) {
+    const runs = await this.prisma.agentRun.findMany({
+      where: { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) },
+      select: {
+        id: true,
+        startedAt: true,
+        messages: {
+          where: { role: { in: ["USER", "ASSISTANT"] } },
+          select: { id: true, role: true, content: true, createdAt: true },
+          orderBy: { createdAt: "asc" }
+        }
+      },
+      orderBy: { startedAt: "desc" },
+      take: 50
+    });
+
+    return runs.reverse().flatMap((run) => run.messages.flatMap((message) => {
+      const text = this.messageText(message.content);
+      if (!text) return [];
+      return [{
+        id: message.id,
+        runId: run.id,
+        role: message.role === "USER" ? "user" as const : "assistant" as const,
+        text,
+        createdAt: message.createdAt
+      }];
+    }));
+  }
+
   memoryHistory(organizationId: string, userId: string, workspaceId?: string) {
     return this.memory.list({ organizationId, userId, workspaceId });
+  }
+
+  async clearConversation(organizationId: string, userId: string, workspaceId?: string) {
+    const where = { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) };
+    const deletedMemoryCount = await this.memory.clear(where);
+    const deletedRuns = await this.prisma.agentRun.deleteMany({ where });
+    return { deletedRuns: deletedRuns.count, deletedMemoryCount };
+  }
+
+  private async recentConversation(organizationId: string, userId: string, workspaceId?: string) {
+    const runs = await this.prisma.agentRun.findMany({
+      where: { organizationId, userId, ...(workspaceId ? { workspaceId } : {}) },
+      select: {
+        startedAt: true,
+        messages: {
+          where: { role: { in: ["USER", "ASSISTANT"] } },
+          select: { role: true, content: true, createdAt: true },
+          orderBy: { createdAt: "asc" }
+        }
+      },
+      orderBy: { startedAt: "desc" },
+      take: 5
+    });
+    return runs.reverse().flatMap((run) => run.messages.flatMap((message) => {
+      const text = this.messageText(message.content);
+      if (!text) return [];
+      return [{ role: message.role === "USER" ? "user" as const : "assistant" as const, text }];
+    })).slice(-10);
+  }
+
+  private async activeWorkspaceId(organizationId: string, userId: string, sessionId?: string) {
+    if (!sessionId) return undefined;
+    const session = await this.prisma.session.findFirst({
+      where: { id: sessionId, userId, organizationId },
+      select: { workspaceId: true }
+    });
+    return session?.workspaceId ?? undefined;
+  }
+
+  private readUiAction(result: Record<string, unknown>): AgentUiAction | undefined {
+    const candidate = result.uiAction;
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return undefined;
+    const action = candidate as Partial<AgentUiAction>;
+    if (action.type !== "navigate" || !action.target || !action.label) return undefined;
+    return action as AgentUiAction;
+  }
+
+  private messageText(content: Prisma.JsonValue | null) {
+    if (!content || typeof content !== "object" || Array.isArray(content)) return undefined;
+    const text = (content as { text?: unknown }).text;
+    return typeof text === "string" && text.trim() ? text : undefined;
   }
 }

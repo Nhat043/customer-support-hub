@@ -87,6 +87,7 @@ function createHarness(
     $transaction: async (callback: (transaction: typeof tx) => unknown) =>
       callback(tx),
     session: { findUnique: async () => session },
+    workspace: { findFirst: async () => ({ id: "workspace-1" }) },
     membership: { findUnique: async () => ({ role: "OWNER" }) },
     user: { findUnique: async () => null, update: tx.user.update },
   };
@@ -248,6 +249,7 @@ test("register creates an organization, a session, and a hashed refresh token", 
   };
   const prisma = {
     user: { findUnique: async () => null },
+    workspace: { findFirst: async () => ({ id: "workspace-1" }) },
     session: {
       findUnique: async () => ({
         ...createdSession,
@@ -324,6 +326,7 @@ test("login creates a session for an active user", async () => {
         },
       }),
     },
+    workspace: { findFirst: async () => ({ id: "workspace-1" }) },
     $transaction: async (callback: (transaction: typeof tx) => unknown) =>
       callback(tx),
   };

@@ -8,11 +8,12 @@ const userSummary = { id: true, fullName: true, email: true } as const;
 export class WorkflowItemsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(organizationId: string, workspaceId?: string | null) {
+  async list(organizationId: string, workspaceId?: string | null) {
+    const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
     return this.prisma.workflowItem.findMany({
       where: {
         organizationId,
-        ...(workspaceId ? { workspaceId } : {})
+        workspaceId: resolvedWorkspaceId
       },
       orderBy: { createdAt: "desc" },
       include: {
@@ -24,17 +25,18 @@ export class WorkflowItemsService {
     });
   }
 
-  create(
+  async create(
     organizationId: string,
     createdById: string,
     dto: CreateWorkflowItemDto,
     workspaceId?: string | null
   ) {
+    const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
     return this.prisma.$transaction(async (tx) => {
       const item = await tx.workflowItem.create({
         data: {
           organizationId,
-          workspaceId: workspaceId ?? undefined,
+          workspaceId: resolvedWorkspaceId,
           createdById,
           type: dto.type ?? "general",
           title: dto.title,
@@ -46,7 +48,7 @@ export class WorkflowItemsService {
       await tx.workflowEvent.create({
         data: {
           organizationId,
-          workspaceId: workspaceId ?? undefined,
+          workspaceId: resolvedWorkspaceId,
           workflowItemId: item.id,
           eventType: "CREATED",
           payload: { title: item.title }
@@ -152,5 +154,19 @@ export class WorkflowItemsService {
       select: { id: true }
     });
     if (!member) throw new NotFoundException("Assignee must be an active Owner, Admin, or Member in this workspace");
+  }
+
+  private async resolveWorkspaceId(organizationId: string, workspaceId?: string | null) {
+    const workspace = await this.prisma.workspace.findFirst({
+      where: {
+        organizationId,
+        status: "ACTIVE",
+        ...(workspaceId ? { id: workspaceId } : {})
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true }
+    });
+    if (!workspace) throw new NotFoundException("Active workspace not found");
+    return workspace.id;
   }
 }

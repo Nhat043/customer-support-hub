@@ -58,6 +58,7 @@ export class JwtGuard implements CanActivate {
       }
 
       request.user = payload;
+      request.session = session;
       return true;
     } catch {
       throw new UnauthorizedException("Invalid access token");

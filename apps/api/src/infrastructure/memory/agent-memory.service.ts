@@ -19,7 +19,7 @@ export class AgentMemoryService {
 
   async retrieve(filter: MemoryVectorFilter, query: string, limit = 5): Promise<AgentMemoryContext[]> {
     try {
-      const vector = await this.embeddings.embed(query);
+      const vector = await this.embeddings.embed(query, "RETRIEVAL_QUERY");
       return await this.vectorStore.search(vector, filter, limit);
     } catch (error) {
       this.logger.warn(`Memory retrieval skipped: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -87,5 +87,20 @@ export class AgentMemoryService {
       orderBy: { createdAt: "desc" },
       take: 50
     });
+  }
+
+  async clear(filter: MemoryVectorFilter) {
+    const where = {
+      organizationId: filter.organizationId,
+      userId: filter.userId,
+      ...(filter.workspaceId ? { workspaceId: filter.workspaceId } : {})
+    };
+    const chunks = await this.prisma.agentMemoryChunk.findMany({
+      where,
+      select: { id: true }
+    });
+    await this.vectorStore.delete(chunks.map((chunk) => chunk.id));
+    const result = await this.prisma.agentMemoryChunk.deleteMany({ where });
+    return result.count;
   }
 }

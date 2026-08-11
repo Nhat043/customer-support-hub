@@ -20,6 +20,55 @@ const currentItem = {
   events: []
 };
 
+test("create attaches a customer request and audit event to the active workspace", async () => {
+  const calls: { item?: any; event?: any } = {};
+  const prisma = {
+    workspace: { findFirst: async () => ({ id: "workspace-general" }) },
+    $transaction: async (callback: any) => callback({
+      workflowItem: {
+        create: async ({ data }: any) => {
+          calls.item = data;
+          return { id: "item-1", title: data.title };
+        }
+      },
+      workflowEvent: {
+        create: async ({ data }: any) => {
+          calls.event = data;
+          return data;
+        }
+      }
+    })
+  };
+  const service = new WorkflowItemsService(prisma as any);
+
+  await service.create("org-1", "owner-1", { title: "Delivery delay" });
+
+  assert.equal(calls.item.workspaceId, "workspace-general");
+  assert.equal(calls.event.workspaceId, "workspace-general");
+  assert.equal(calls.event.eventType, "CREATED");
+});
+
+test("list resolves the active workspace and never returns another workspace's requests", async () => {
+  let query: any;
+  const prisma = {
+    workspace: { findFirst: async () => ({ id: "workspace-general" }) },
+    workflowItem: {
+      findMany: async (args: any) => {
+        query = args;
+        return [];
+      }
+    }
+  };
+  const service = new WorkflowItemsService(prisma as any);
+
+  await service.list("org-1");
+
+  assert.deepEqual(query.where, {
+    organizationId: "org-1",
+    workspaceId: "workspace-general"
+  });
+});
+
 test("member cannot assign a customer request", async () => {
   const prisma = { workflowItem: { findFirst: async () => currentItem } };
   const service = new WorkflowItemsService(prisma as any);

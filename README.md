@@ -10,8 +10,8 @@ The project is designed as a portfolio-grade full-stack system rather than a UI-
 - Lets owners and admins invite teammates with `ADMIN`, `MEMBER`, or `VIEWER` permissions.
 - Keeps delivery issues, refund requests, and customer questions as trackable customer requests.
 - Supports comments, request state changes, and an audit trail within the active company/workspace.
-- Provides an AI helper with function tools, streaming over Socket.IO, idempotent agent runs, and pluggable vector memory.
-- Uses mock AI by default, so local development does not require an AI provider key.
+- Provides an AI helper with allow-listed function tools, streaming over Socket.IO, idempotent agent runs, private chat history, and semantic vector memory.
+- Uses mock AI by default, while Gemini function calling and `gemini-embedding-001` can be enabled with an API key.
 
 ## Roles
 
@@ -49,7 +49,7 @@ Tenant boundaries are enforced from the organization/workspace context and role 
 - **Frontend:** Next.js 15, React 19, TypeScript
 - **Backend:** NestJS 11, TypeScript, Socket.IO
 - **Database:** PostgreSQL, Prisma migrations
-- **AI:** provider abstraction, function tools, mock provider, optional Qdrant memory
+- **AI:** Gemini function calling, allow-listed tools, `gemini-embedding-001`, Qdrant semantic memory
 - **Runtime:** Docker Compose, Redis, Qdrant
 - **Observability:** Prometheus, Loki, Grafana
 - **Quality:** ESLint, TypeScript, Prisma validation, unit tests with an 80% coverage gate
@@ -150,6 +150,32 @@ pnpm exec prisma validate --schema prisma/schema.prisma
 
 The GitHub Actions CI workflow runs these checks on every pull request and every push to `main`. It also builds the API and web Docker images to validate production Dockerfiles.
 
+With the Docker stack running, run the real local service checks separately:
+
+```bash
+pnpm test:integration
+pnpm test:e2e:smoke
+```
+
+The integration suite verifies the live API health endpoint and Qdrant tenant/workspace filter. The E2E smoke test verifies that the running web application serves the Customer Support Hub landing page. They are intentionally separate from CI because they need local Docker services.
+
+## Gemini Semantic Memory
+
+Set these uncommitted `.env` values to use Gemini for both the agent and semantic memory:
+
+```dotenv
+AI_PROVIDER=gemini
+AI_MODEL=gemini-2.5-flash
+GEMINI_API_KEY=your-gemini-api-key
+VECTOR_STORE=qdrant
+EMBEDDING_PROVIDER=gemini
+EMBEDDING_MODEL=gemini-embedding-001
+EMBEDDING_DIMENSIONS=768
+QDRANT_COLLECTION=agent_memory_semantic_v1
+```
+
+Conversation history remains in PostgreSQL per organization, user, and workspace. Qdrant stores semantic retrieval vectors under the same tenant scope. The `agent_memory_semantic_v1` collection is deliberately new so the old 64-dimensional deterministic vectors are not overwritten. The model never receives database credentials or SQL access; it can only access data through the reviewed function tools.
+
 ## Deployment Safety
 
 This repository includes a GCE deployment workflow as infrastructure reference only.
@@ -163,5 +189,5 @@ No deployment is required to explore or run the project locally.
 ## Roadmap
 
 - Request assignment, SLA targets, and customer-facing status updates.
-- Real LLM provider configuration with prompt safety and tool authorization policies.
+- Agent evaluation datasets and production-grade semantic-memory observability.
 - Tenant-level analytics and agent evaluation datasets.

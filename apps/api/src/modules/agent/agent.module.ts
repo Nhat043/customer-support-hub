@@ -12,6 +12,7 @@ import { AgentToolsService } from "./agent-tools.service";
 import { MockAgentProvider } from "./mock-agent.provider";
 import { GeminiAgentProvider } from "./gemini-agent.provider";
 import { AgentGateway } from "./agent.gateway";
+import { AgentKnowledgeService } from "./agent-knowledge.service";
 import { ObservabilityModule } from "../../infrastructure/observability/observability.module";
 import { MemoryModule } from "../../infrastructure/memory/memory.module";
 
@@ -22,6 +23,7 @@ import { MemoryModule } from "../../infrastructure/memory/memory.module";
     AgentService,
     AgentToolsService,
     AgentGateway,
+    AgentKnowledgeService,
     MockAgentProvider,
     GeminiAgentProvider,
     JwtGuard,
