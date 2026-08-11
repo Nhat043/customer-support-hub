@@ -9,6 +9,10 @@ build/
 coverage/
 *.tsbuildinfo
 .tmp/
+.playwright/
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
 
 # Env and secrets
 .env

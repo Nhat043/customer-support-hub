@@ -157,7 +157,16 @@ pnpm test:integration
 pnpm test:e2e:smoke
 ```
 
-The integration suite verifies the live API health endpoint and Qdrant tenant/workspace filter. The E2E smoke test verifies that the running web application serves the Customer Support Hub landing page. They are intentionally separate from CI because they need local Docker services.
+The integration suite verifies the live API health endpoint and Qdrant tenant/workspace filter. The E2E smoke test verifies that the running web application serves the Customer Support Hub landing page.
+
+The browser E2E suite covers the owner journey: create a company workspace, create a customer request, and ask the AI assistant about that request. Start the API and standalone web application first, then run:
+
+```bash
+pnpm --filter @customer-support-hub/web exec playwright install chromium
+pnpm --filter @customer-support-hub/web test:e2e
+```
+
+GitHub Actions provisions PostgreSQL, Redis, and Qdrant for integration and browser checks on pull requests and pushes to `main`.
 
 ## Gemini Semantic Memory
 

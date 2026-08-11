@@ -77,6 +77,22 @@ test("viewer membership cannot execute mutation tools", async () => {
   );
 });
 
+test("viewer membership is blocked from every mutation tool before any database access", async () => {
+  const tools = new AgentToolsService({} as any);
+  const viewer = { organizationId: "org-a", userId: "user-a", membershipRole: "VIEWER" };
+
+  for (const [name, args] of [
+    ["create_workflow_item", { title: "Blocked request" }],
+    ["update_workflow_status", { workflowItemId: "item-1", status: "CLOSED" }],
+    ["add_comment", { workflowItemId: "item-1", body: "Blocked note" }]
+  ] as const) {
+    await assert.rejects(
+      tools.execute(name, viewer, args),
+      /Viewer membership cannot mutate/
+    );
+  }
+});
+
 test("agent tool registry exposes all workflow tools and rejects unknown tools", async () => {
   const { tools } = toolHarness();
   assert.deepEqual(tools.listDefinitions().map((tool) => tool.name), [
@@ -124,6 +140,30 @@ test("request detail tool reads only the selected tenant-owned request and retur
   assert.equal((result.item as any).description, "Order has not arrived.");
   assert.deepEqual(result.uiAction, {
     type: "navigate", target: "request_detail", label: "Open request: Delayed delivery", workflowItemId: "item-1"
+  });
+});
+
+test("request detail tool rejects a request from another workspace without disclosing it", async () => {
+  let receivedWhere: unknown;
+  const tools = new AgentToolsService({
+    workflowItem: {
+      findFirst: async (query: { where: unknown }) => {
+        receivedWhere = query.where;
+        return null;
+      }
+    }
+  } as any);
+
+  await assert.rejects(
+    tools.execute("get_workflow_item", {
+      organizationId: "org-a", userId: "user-a", membershipRole: "MEMBER", workspaceId: "workspace-a"
+    }, { workflowItemId: "item-from-workspace-b" }),
+    /Workflow item not found/
+  );
+  assert.deepEqual(receivedWhere, {
+    id: "item-from-workspace-b",
+    organizationId: "org-a",
+    workspaceId: "workspace-a"
   });
 });
 
