@@ -11,6 +11,7 @@ function createHarness(options: {
   workspace?: Record<string, unknown> | null;
   workflowItem?: Record<string, unknown> | null;
   memories?: Array<Record<string, unknown>>;
+  knowledge?: Array<Record<string, unknown>>;
   runs?: Array<Record<string, unknown>>;
 } = {}) {
   const updates: Array<Record<string, unknown>> = [];
@@ -78,13 +79,16 @@ function createHarness(options: {
     },
     list: async () => [{ id: "memory-1" }]
   } as any;
+  const knowledge = {
+    retrieve: async () => options.knowledge ?? []
+  } as any;
   const provider = options.provider ?? {
     complete: async () => ({
       text: "Created",
       toolCall: { name: "create_workflow_item", arguments: { title: "Test item" } }
     })
   };
-  const service = new AgentService(prisma, tools, config, metrics, memory, provider);
+  const service = new AgentService(prisma, tools, config, metrics, memory, knowledge, provider);
 
   return { service, updates, createdRuns, hookEvents, metricEvents, memoryEvents, runQueries, deletedRunQueries };
 }
@@ -319,4 +323,32 @@ test("agent service passes retrieved memory and private conversation context to 
     { role: "assistant", text: "There is 1 new request." }
   ]);
   assert.deepEqual(await harness.service.memoryHistory("org-1", "user-1"), [{ id: "memory-1" }]);
+});
+
+test("agent service passes workspace knowledge to the provider and returns source citations", async () => {
+  let receivedKnowledge: unknown;
+  const citation = {
+    chunkId: "chunk-1",
+    documentId: "document-1",
+    title: "Refund policy",
+    fileName: "refund-policy.md",
+    excerpt: "Refunds are reviewed within five business days.",
+    score: 0.91
+  };
+  const harness = createHarness({
+    knowledge: [citation],
+    provider: {
+      complete: async (input) => {
+        receivedKnowledge = input.knowledge;
+        return { text: "Refunds are reviewed within five business days." };
+      }
+    }
+  });
+
+  const result = await harness.service.run("org-1", "user-1", "session-1", "MEMBER", "knowledge-key", {
+    message: "How long does a refund take?"
+  });
+
+  assert.deepEqual(receivedKnowledge, [citation]);
+  assert.deepEqual(result.citations, [citation]);
 });

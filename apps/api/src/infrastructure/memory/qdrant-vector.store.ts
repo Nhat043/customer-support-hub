@@ -22,7 +22,7 @@ export class QdrantVectorStore implements VectorStore {
         vector: point.vector,
         payload: {
           organizationId: point.organizationId,
-          userId: point.userId,
+          userId: point.userId ?? "",
           workspaceId: point.workspaceId ?? "",
           text: point.text,
           sourceType: point.sourceType,
@@ -36,9 +36,10 @@ export class QdrantVectorStore implements VectorStore {
     await this.ensureCollection();
     const must: Array<Record<string, unknown>> = [
       { key: "organizationId", match: { value: filter.organizationId } },
-      { key: "userId", match: { value: filter.userId } }
+      ...(filter.userId ? [{ key: "userId", match: { value: filter.userId } }] : [])
     ];
     if (filter.workspaceId) must.push({ key: "workspaceId", match: { value: filter.workspaceId } });
+    if (filter.sourceType) must.push({ key: "sourceType", match: { value: filter.sourceType } });
     const matches = await this.client.search(this.collectionName, {
       vector,
       limit,

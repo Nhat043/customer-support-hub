@@ -14,6 +14,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { ObservabilityModule } from "./infrastructure/observability/observability.module";
 import { RequestObservabilityMiddleware } from "./infrastructure/observability/request-observability.middleware";
 import { validateEnvironment } from "./config/validate-environment";
+import { KnowledgeModule } from "./modules/knowledge/knowledge.module";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { validateEnvironment } from "./config/validate-environment";
     AgentModule,
     TeamModule,
     NotificationsModule,
+    KnowledgeModule,
     HealthModule,
   ],
 })

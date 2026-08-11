@@ -6,6 +6,7 @@ import { EMBEDDING_PROVIDER, EmbeddingProvider } from "./embedding.provider";
 import { MemoryVectorFilter, MemoryVectorMatch, VECTOR_STORE, VectorStore } from "./vector-store";
 
 export type AgentMemoryContext = MemoryVectorMatch;
+type PrivateMemoryFilter = MemoryVectorFilter & { userId: string };
 
 @Injectable()
 export class AgentMemoryService {
@@ -17,7 +18,7 @@ export class AgentMemoryService {
     @Inject(VECTOR_STORE) private readonly vectorStore: VectorStore
   ) {}
 
-  async retrieve(filter: MemoryVectorFilter, query: string, limit = 5): Promise<AgentMemoryContext[]> {
+  async retrieve(filter: PrivateMemoryFilter, query: string, limit = 5): Promise<AgentMemoryContext[]> {
     try {
       const vector = await this.embeddings.embed(query, "RETRIEVAL_QUERY");
       return await this.vectorStore.search(vector, filter, limit);
@@ -27,7 +28,7 @@ export class AgentMemoryService {
     }
   }
 
-  async remember(input: MemoryVectorFilter & {
+  async remember(input: PrivateMemoryFilter & {
     agentRunId: string;
     sourceType: string;
     sourceId?: string;
@@ -68,7 +69,7 @@ export class AgentMemoryService {
     }
   }
 
-  list(filter: MemoryVectorFilter) {
+  list(filter: PrivateMemoryFilter) {
     return this.prisma.agentMemoryChunk.findMany({
       where: {
         organizationId: filter.organizationId,
@@ -89,7 +90,7 @@ export class AgentMemoryService {
     });
   }
 
-  async clear(filter: MemoryVectorFilter) {
+  async clear(filter: PrivateMemoryFilter) {
     const where = {
       organizationId: filter.organizationId,
       userId: filter.userId,

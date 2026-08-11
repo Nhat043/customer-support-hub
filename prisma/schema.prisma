@@ -104,6 +104,12 @@ enum AgentRunStatus {
   CANCELLED
 }
 
+enum KnowledgeDocumentStatus {
+  INDEXING
+  READY
+  FAILED
+}
+
 enum OutboxEventStatus {
   PENDING
   PROCESSING
@@ -137,6 +143,8 @@ model Organization {
   agentRuns      AgentRun[]
   agentMessages  AgentMessage[]
   memoryChunks   AgentMemoryChunk[]
+  knowledgeDocuments KnowledgeDocument[]
+  knowledgeChunks    KnowledgeChunk[]
   outboxEvents   OutboxEvent[]
   notifications  Notification[]
 
@@ -161,6 +169,8 @@ model Workspace {
   agentRuns      AgentRun[]
   agentMessages  AgentMessage[]
   memoryChunks   AgentMemoryChunk[]
+  knowledgeDocuments KnowledgeDocument[]
+  knowledgeChunks    KnowledgeChunk[]
   sessions       Session[]
 
   @@unique([organizationId, slug])
@@ -233,6 +243,7 @@ model User {
   uploadedFiles       Attachment[]       @relation("UploadedBy")
   actorWorkflowEvents WorkflowEvent[]
   memoryChunks        AgentMemoryChunk[] @relation("MemoryOwner")
+  uploadedKnowledgeDocuments KnowledgeDocument[] @relation("KnowledgeUploadedBy")
   passwordResetOtps   PasswordResetOtp[]
   notifications       Notification[]
 
@@ -557,4 +568,47 @@ model AgentMemoryChunk {
   @@index([sourceType])
   @@index([sourceId])
   @@index([createdAt])
+}
+
+model KnowledgeDocument {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  workspaceId    String                  @db.Uuid
+  uploadedById   String                  @db.Uuid
+  title          String
+  fileName       String
+  contentHash    String
+  status         KnowledgeDocumentStatus @default(INDEXING)
+  chunkCount     Int                     @default(0)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  uploadedBy   User             @relation("KnowledgeUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  chunks       KnowledgeChunk[]
+
+  @@unique([organizationId, workspaceId, contentHash])
+  @@index([organizationId, workspaceId, createdAt])
+  @@index([uploadedById])
+  @@index([status])
+}
+
+model KnowledgeChunk {
+  id             String   @id @default(uuid()) @db.Uuid
+  documentId     String   @db.Uuid
+  organizationId String   @db.Uuid
+  workspaceId    String   @db.Uuid
+  ordinal        Int
+  content        String
+  embeddingRef   String?
+  createdAt      DateTime @default(now())
+
+  document     KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, ordinal])
+  @@index([organizationId, workspaceId, createdAt])
+  @@index([documentId])
 }

@@ -54,6 +54,34 @@ test("in-memory vector store enforces organization, user, and workspace filters"
   }, 5), []);
 });
 
+test("in-memory vector store can retrieve workspace knowledge without exposing private agent memory", async () => {
+  const store = new InMemoryVectorStore();
+  await store.upsert({
+    id: "knowledge-a",
+    organizationId: "org-a",
+    workspaceId: "workspace-a",
+    vector: [1, 0],
+    text: "Delivery knowledge",
+    sourceType: "knowledge"
+  });
+  await store.upsert({
+    id: "memory-a",
+    organizationId: "org-a",
+    userId: "user-a",
+    workspaceId: "workspace-a",
+    vector: [1, 0],
+    text: "Private memory",
+    sourceType: "agent_run"
+  });
+
+  const matches = await store.search([1, 0], {
+    organizationId: "org-a",
+    workspaceId: "workspace-a",
+    sourceType: "knowledge"
+  }, 5);
+  assert.deepEqual(matches.map((match) => match.id), ["knowledge-a"]);
+});
+
 test("agent memory clear removes the same tenant-scoped chunks from the vector store and database", async () => {
   const deletedVectors: string[][] = [];
   const deletedQueries: Array<Record<string, unknown>> = [];

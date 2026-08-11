@@ -65,6 +65,9 @@ export default function OrgLayout({
             <Link className="btn secondary" href={`/orgs/${params.orgSlug}/workflow-items`}>
               Customer requests
             </Link>
+            <Link className="btn secondary" href={`/orgs/${params.orgSlug}/knowledge`}>
+              Knowledge
+            </Link>
             {canManageTeam ? (
               <Link className="btn secondary" href={`/orgs/${params.orgSlug}/team`}>
                 Team and roles

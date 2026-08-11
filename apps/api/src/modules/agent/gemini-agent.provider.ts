@@ -32,13 +32,16 @@ export class GeminiAgentProvider implements AgentProvider {
       ...(useVertex ? { project: this.config.get<string>("GOOGLE_CLOUD_PROJECT"), location: this.config.get<string>("GOOGLE_CLOUD_LOCATION", "global") } : {})
     });
     const memory = input.memory.length ? input.memory.map((entry) => `- ${entry.text}`).join("\n") : "No prior memory.";
+    const knowledge = input.knowledge?.length
+      ? input.knowledge.map((entry) => `- [Source: ${entry.title} (${entry.fileName})] ${entry.excerpt}`).join("\n")
+      : "No workspace knowledge matched this question.";
     const conversation = input.conversation.length
       ? input.conversation.map((entry) => `${entry.role === "user" ? "User" : "Assistant"}: ${entry.text}`).join("\n")
       : "No prior conversation.";
     const chat = client.chats.create({
       model: input.modelName,
       config: {
-        systemInstruction: `You are a customer support workspace assistant. Follow this knowledge base exactly:\n${this.knowledge.getBaseKnowledge()}\n\nRecent private conversation:\n${conversation}\n\nTenant memory:\n${memory}\n\nFor a follow-up such as "explain this/the request", resolve the referent from the recent conversation. Never invent details. If the request ID is not already available, first call list_workflow_items to identify the matching request, then call get_workflow_item with its ID before answering.`,
+        systemInstruction: `You are a customer support workspace assistant. Follow this knowledge base exactly:\n${this.knowledge.getBaseKnowledge()}\n\nWorkspace knowledge excerpts:\n${knowledge}\n\nRecent private conversation:\n${conversation}\n\nTenant memory:\n${memory}\n\nFor a follow-up such as "explain this/the request", resolve the referent from the recent conversation. Never invent details. If the request ID is not already available, first call list_workflow_items to identify the matching request, then call get_workflow_item with its ID before answering. When an answer uses a workspace knowledge excerpt, name its Source title in the answer.`,
         tools: [{ functionDeclarations }]
       }
     });

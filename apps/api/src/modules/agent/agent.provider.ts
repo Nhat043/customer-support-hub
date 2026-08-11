@@ -16,6 +16,7 @@ export type AgentProviderInput = {
   message: string;
   modelName: string;
   memory: Array<{ id: string; text: string; score: number; sourceType: string; sourceId?: string }>;
+  knowledge?: Array<{ chunkId: string; documentId: string; title: string; fileName: string; excerpt: string; score: number }>;
   conversation: Array<{ role: "user" | "assistant"; text: string }>;
 };
 
@@ -29,7 +30,7 @@ export type AgentRunHooks = {
   onStarted?: (event: { runId: string; modelName: string }) => void | Promise<void>;
   onToolCalled?: (event: { runId: string; name: string; arguments: Record<string, unknown> }) => void | Promise<void>;
   onToolResult?: (event: { runId: string; name: string; result: Record<string, unknown> }) => void | Promise<void>;
-  onCompleted?: (event: { runId: string; output: string; replayed?: boolean; uiAction?: AgentUiAction | null }) => void | Promise<void>;
+  onCompleted?: (event: { runId: string; output: string; replayed?: boolean; uiAction?: AgentUiAction | null; citations?: AgentProviderInput["knowledge"] }) => void | Promise<void>;
   onFailed?: (event: { runId: string; message: string }) => void | Promise<void>;
 };
 

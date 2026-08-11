@@ -196,6 +196,12 @@ QDRANT_COLLECTION=agent_memory_semantic_v1
 
 Conversation history remains in PostgreSQL per organization, user, and workspace. Qdrant stores semantic retrieval vectors under the same tenant scope. The `agent_memory_semantic_v1` collection is deliberately new so the old 64-dimensional deterministic vectors are not overwritten. The model never receives database credentials or SQL access; it can only access data through the reviewed function tools.
 
+## Workspace Knowledge RAG
+
+Owners and admins can open **Knowledge** in a workspace and upload UTF-8 Markdown (`.md`) documents. The API stores document metadata and chunks in PostgreSQL, embeds each chunk, and indexes it in the configured vector store. It rejects duplicate document content within the same organization/workspace and retains a failed index record so it can be removed and retried safely.
+
+At question time, the copilot retrieves only vectors with the current organization ID, active workspace ID, and `sourceType=knowledge`. Private agent memories use a different user-scoped filter and are never returned as workspace knowledge. Gemini receives the matching excerpts with source names, and the drawer renders source cards from the citations returned by the API. PDF/DOCX parsing is intentionally out of scope for this first Markdown-only ingestion path.
+
 ## Deployment Safety
 
 This repository includes a GCE deployment workflow as infrastructure reference only.
