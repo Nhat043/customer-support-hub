@@ -17,10 +17,54 @@ jobs:
   verify:
     name: Verify application
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
-      # Prisma validates the datasource URL format without connecting to this database.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/customer_support_hub_ci?schema=public
+      REDIS_URL: redis://localhost:6379
+      QDRANT_URL: http://localhost:6333
+      QDRANT_COLLECTION: customer_support_hub_ci_memory
+      VECTOR_STORE: qdrant
+      RUN_INTEGRATION_TESTS: "true"
+      AI_PROVIDER: mock
+      AI_MODEL: mock-function-caller
+      EMBEDDING_PROVIDER: deterministic
+      WEB_BASE_URL: http://localhost:3000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api
+      JWT_ACCESS_SECRET: ci-access-secret-that-is-long-enough-for-testing
+      REFRESH_TOKEN_PEPPER: ci-refresh-token-pepper-that-is-long-enough-for-testing
+      PASSWORD_RESET_TOKEN_PEPPER: ci-password-reset-pepper-that-is-long-enough-for-testing
+      ACCESS_TOKEN_TTL: 15m
+      REFRESH_TOKEN_TTL: 30d
+      REFRESH_TOKEN_ABSOLUTE_TTL: 90d
+      COOKIE_DOMAIN: localhost
+      COOKIE_SECURE: "false"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: customer_support_hub_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d customer_support_hub_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      qdrant:
+        image: qdrant/qdrant:v1.18.1
+        ports:
+          - 6333:6333
 
     steps:
       - name: Check out source
@@ -45,14 +89,69 @@ jobs:
       - name: Validate Prisma schema
         run: pnpm exec prisma validate --schema prisma/schema.prisma
 
+      - name: Apply Prisma migrations to CI PostgreSQL
+        run: pnpm prisma:migrate:deploy
+
       - name: Lint source code
         run: pnpm lint
 
       - name: Run API unit tests and enforce coverage
         run: pnpm --filter @customer-support-hub/api test:coverage
 
+      - name: Run deterministic agent security evaluations
+        run: pnpm --filter @customer-support-hub/api test:eval
+
       - name: Build monorepo
         run: pnpm build
+
+      - name: Start local API and web application
+        run: |
+          pnpm --filter @customer-support-hub/api start > /tmp/customer-support-hub-api.log 2>&1 &
+          pnpm --filter @customer-support-hub/web start > /tmp/customer-support-hub-web.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:4000/api/health > /dev/null && curl --fail --silent http://localhost:3000 > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/customer-support-hub-api.log
+          cat /tmp/customer-support-hub-web.log
+          exit 1
+
+      - name: Wait for Qdrant
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:6333/collections > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Run live API and Qdrant integration tests
+        run: pnpm test:integration
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @customer-support-hub/web exec playwright install --with-deps chromium
+
+      - name: Run browser end-to-end tests
+        run: pnpm --filter @customer-support-hub/web test:e2e
+
+      - name: Print local service logs on failure
+        if: failure()
+        run: |
+          cat /tmp/customer-support-hub-api.log || true
+          cat /tmp/customer-support-hub-web.log || true
+
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            apps/web/test-results/
+            apps/web/playwright-report/
+          if-no-files-found: ignore
 
       - name: Validate API production image
         run: docker build --file apps/api/Dockerfile --tag workflow-platform-api:ci .

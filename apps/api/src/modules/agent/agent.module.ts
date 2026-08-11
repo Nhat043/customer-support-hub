@@ -15,9 +15,10 @@ import { AgentGateway } from "./agent.gateway";
 import { AgentKnowledgeService } from "./agent-knowledge.service";
 import { ObservabilityModule } from "../../infrastructure/observability/observability.module";
 import { MemoryModule } from "../../infrastructure/memory/memory.module";
+import { KnowledgeModule } from "../knowledge/knowledge.module";
 
 @Module({
-  imports: [ConfigModule, PrismaModule, ObservabilityModule, MemoryModule, JwtModule.register({})],
+  imports: [ConfigModule, PrismaModule, ObservabilityModule, MemoryModule, KnowledgeModule, JwtModule.register({})],
   controllers: [AgentController],
   providers: [
     AgentService,

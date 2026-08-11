@@ -4,16 +4,20 @@ import { EventEmitter } from "node:events";
 import { MetricsService } from "../../../../src/infrastructure/observability/metrics.service";
 import { RequestObservabilityMiddleware } from "../../../../src/infrastructure/observability/request-observability.middleware";
 
-test("metrics service exposes HTTP and agent metrics", async () => {
+test("metrics service exposes HTTP, agent, and rate-limit resilience metrics", async () => {
   const metrics = new MetricsService();
   metrics.recordHttpRequest({ method: "GET", route: "/api/health", statusCode: 200, durationSeconds: 0.01 });
   metrics.recordAgentToolCall("list_workflow_items");
   metrics.recordAgentRun("SUCCEEDED", "mock", 0.02);
+  metrics.recordRateLimitFallback("redis_unavailable");
+  metrics.setRateLimitStoreAvailability(false);
 
   const output = await metrics.metrics();
   assert.match(output, /workflow_platform_http_requests_total/);
   assert.match(output, /workflow_platform_agent_tool_calls_total/);
   assert.match(output, /workflow_platform_agent_runs_total/);
+  assert.match(output, /workflow_platform_rate_limit_fallback_total/);
+  assert.match(output, /workflow_platform_rate_limit_redis_available 0/);
   assert.match(metrics.contentType(), /text\/plain/);
 });
 

@@ -7,6 +7,7 @@ import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   const webBaseUrl = process.env.WEB_BASE_URL ?? "http://localhost:3000";
   app.setGlobalPrefix("api");
   app.use(cookieParser());

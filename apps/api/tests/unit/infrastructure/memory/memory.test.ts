@@ -1,12 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { MODULE_METADATA } from "@nestjs/common/constants";
 import { AgentMemoryService } from "../../../../src/infrastructure/memory/agent-memory.service";
 import {
   DETERMINISTIC_EMBEDDING_DIMENSIONS,
-  DeterministicEmbeddingProvider
+  DeterministicEmbeddingProvider,
+  EMBEDDING_PROVIDER
 } from "../../../../src/infrastructure/memory/embedding.provider";
 import { InMemoryVectorStore } from "../../../../src/infrastructure/memory/in-memory-vector.store";
+import { MemoryModule } from "../../../../src/infrastructure/memory/memory.module";
 import { QdrantVectorStore } from "../../../../src/infrastructure/memory/qdrant-vector.store";
+import { VECTOR_STORE } from "../../../../src/infrastructure/memory/vector-store";
+
+test("memory module exports shared embedding and vector providers", () => {
+  const exports = Reflect.getMetadata(MODULE_METADATA.EXPORTS, MemoryModule) as unknown[];
+
+  assert.ok(exports.includes(EMBEDDING_PROVIDER));
+  assert.ok(exports.includes(VECTOR_STORE));
+});
 
 test("deterministic embedding is stable and normalized", async () => {
   const embeddings = new DeterministicEmbeddingProvider();
@@ -52,6 +63,34 @@ test("in-memory vector store enforces organization, user, and workspace filters"
     userId: "user-a",
     workspaceId: "workspace-a"
   }, 5), []);
+});
+
+test("in-memory vector store can retrieve workspace knowledge without exposing private agent memory", async () => {
+  const store = new InMemoryVectorStore();
+  await store.upsert({
+    id: "knowledge-a",
+    organizationId: "org-a",
+    workspaceId: "workspace-a",
+    vector: [1, 0],
+    text: "Delivery knowledge",
+    sourceType: "knowledge"
+  });
+  await store.upsert({
+    id: "memory-a",
+    organizationId: "org-a",
+    userId: "user-a",
+    workspaceId: "workspace-a",
+    vector: [1, 0],
+    text: "Private memory",
+    sourceType: "agent_run"
+  });
+
+  const matches = await store.search([1, 0], {
+    organizationId: "org-a",
+    workspaceId: "workspace-a",
+    sourceType: "knowledge"
+  }, 5);
+  assert.deepEqual(matches.map((match) => match.id), ["knowledge-a"]);
 });
 
 test("agent memory clear removes the same tenant-scoped chunks from the vector store and database", async () => {

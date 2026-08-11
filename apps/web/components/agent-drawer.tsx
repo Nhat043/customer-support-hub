@@ -6,7 +6,8 @@ import { io, Socket } from "socket.io-client";
 import { apiFetch, API_ORIGIN } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 
-type ChatMessage = { id?: string; role: "user" | "assistant"; text: string; createdAt?: string };
+type KnowledgeCitation = { chunkId: string; documentId: string; title: string; fileName: string; excerpt: string; score: number };
+type ChatMessage = { id?: string; role: "user" | "assistant"; text: string; createdAt?: string; citations?: KnowledgeCitation[] };
 type UiAction = {
   type: "navigate";
   target: "dashboard" | "requests" | "request_detail";
@@ -24,7 +25,7 @@ function renderInlineMarkdown(text: string): ReactNode {
   });
 }
 
-function AssistantMessage({ text }: { text: string }) {
+function AssistantMessage({ text, citations = [] }: { text: string; citations?: KnowledgeCitation[] }) {
   return (
     <div className="agent-message-content">
       {text.split("\n").map((line, index) => {
@@ -35,6 +36,18 @@ function AssistantMessage({ text }: { text: string }) {
         if (!line.trim()) return <div className="agent-message-spacer" key={index} />;
         return <p key={index}>{renderInlineMarkdown(line)}</p>;
       })}
+      {citations.length ? (
+        <section className="agent-citations" aria-label="Knowledge sources">
+          <strong>Sources</strong>
+          {citations.map((citation) => (
+            <article key={citation.chunkId}>
+              <span>{citation.title}</span>
+              <small>{citation.fileName}</small>
+              <p>{citation.excerpt}</p>
+            </article>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -140,8 +153,8 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
         socket.on("run.started", () => setStatus("Thinking with tenant context"));
         socket.on("tool.called", (tool: { name: string }) => setStatus(`Using ${tool.name.replaceAll("_", " ")}`));
         socket.on("tool.result", () => setStatus("Validating tool result"));
-        socket.on("run.completed", (result: { output: string; uiAction?: UiAction | null }) => {
-          setMessages((current) => [...current, { role: "assistant", text: result.output, createdAt: new Date().toISOString() }]);
+        socket.on("run.completed", (result: { output: string; uiAction?: UiAction | null; citations?: KnowledgeCitation[] }) => {
+          setMessages((current) => [...current, { role: "assistant", text: result.output, citations: result.citations, createdAt: new Date().toISOString() }]);
           setUiAction(result.uiAction ?? null);
           setStatus("Completed");
           cleanup();
@@ -204,7 +217,7 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
         {messages.map((item, index) => (
           <article className={`agent-message ${item.role}`} key={`${item.role}-${index}`}>
             <strong>{item.role === "user" ? "You" : "Assistant"}</strong>
-            {item.role === "assistant" ? <AssistantMessage text={item.text} /> : <p>{item.text}</p>}
+            {item.role === "assistant" ? <AssistantMessage text={item.text} citations={item.citations} /> : <p>{item.text}</p>}
           </article>
         ))}
       </div>

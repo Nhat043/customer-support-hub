@@ -1,7 +1,8 @@
 export type MemoryVectorFilter = {
   organizationId: string;
-  userId: string;
+  userId?: string;
   workspaceId?: string;
+  sourceType?: string;
 };
 
 export type MemoryVectorPoint = MemoryVectorFilter & {

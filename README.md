@@ -44,6 +44,12 @@ NestJS API
 
 Tenant boundaries are enforced from the organization/workspace context and role guard, rather than trusting a client-provided tenant identifier alone.
 
+### Redis Rate-Limit Resilience
+
+Redis provides the shared rate-limit store when `REDIS_URL` is configured. Its connection retries with exponential backoff, and the API continues with a local in-memory limiter while Redis is unavailable. `GET /api/health` exposes the active mode as `redis`, `memory`, or `memory_fallback`; Prometheus exposes Redis availability and fallback counters.
+
+The fallback intentionally keeps the API available, but its counters are per API instance. During a Redis outage, a multi-replica deployment therefore has weaker global rate limiting until Redis reconnects. This status should be monitored before a production rollout.
+
 ## Stack
 
 - **Frontend:** Next.js 15, React 19, TypeScript
@@ -144,6 +150,7 @@ Local endpoints:
 ```bash
 pnpm lint
 pnpm --filter @customer-support-hub/api test:coverage
+pnpm --filter @customer-support-hub/api test:eval
 pnpm build
 pnpm exec prisma validate --schema prisma/schema.prisma
 ```
@@ -157,7 +164,20 @@ pnpm test:integration
 pnpm test:e2e:smoke
 ```
 
-The integration suite verifies the live API health endpoint and Qdrant tenant/workspace filter. The E2E smoke test verifies that the running web application serves the Customer Support Hub landing page. They are intentionally separate from CI because they need local Docker services.
+The integration suite verifies the live API health endpoint and Qdrant tenant/workspace filter. The E2E smoke test verifies that the running web application serves the Customer Support Hub landing page.
+
+The browser E2E suite covers the owner journey: create a company workspace, create a customer request, and ask the AI assistant about that request. Start the API and standalone web application first, then run:
+
+```bash
+pnpm --filter @customer-support-hub/web exec playwright install chromium
+pnpm --filter @customer-support-hub/web test:e2e
+```
+
+GitHub Actions provisions PostgreSQL, Redis, and Qdrant for integration and browser checks on pull requests and pushes to `main`.
+
+### Agent Security Evaluations
+
+`pnpm --filter @customer-support-hub/api test:eval` is a deterministic suite that checks function-tool routing, allow-listed navigation, tenant and workspace scoping, Viewer mutation denial, and prompt-injection resistance. It uses the local mock provider, so it runs without an AI API key or a running application.
 
 ## Gemini Semantic Memory
 
@@ -175,6 +195,12 @@ QDRANT_COLLECTION=agent_memory_semantic_v1
 ```
 
 Conversation history remains in PostgreSQL per organization, user, and workspace. Qdrant stores semantic retrieval vectors under the same tenant scope. The `agent_memory_semantic_v1` collection is deliberately new so the old 64-dimensional deterministic vectors are not overwritten. The model never receives database credentials or SQL access; it can only access data through the reviewed function tools.
+
+## Workspace Knowledge RAG
+
+Owners and admins can open **Knowledge** in a workspace and upload UTF-8 Markdown (`.md`) documents. The API stores document metadata and chunks in PostgreSQL, embeds each chunk, and indexes it in the configured vector store. It rejects duplicate document content within the same organization/workspace and retains a failed index record so it can be removed and retried safely.
+
+At question time, the copilot retrieves only vectors with the current organization ID, active workspace ID, and `sourceType=knowledge`. Private agent memories use a different user-scoped filter and are never returned as workspace knowledge. Gemini receives the matching excerpts with source names, and the drawer renders source cards from the citations returned by the API. PDF/DOCX parsing is intentionally out of scope for this first Markdown-only ingestion path.
 
 ## Deployment Safety
 

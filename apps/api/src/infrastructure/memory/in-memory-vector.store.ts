@@ -14,8 +14,9 @@ export class InMemoryVectorStore implements VectorStore {
     return [...this.points.values()]
       .filter((point) =>
         point.organizationId === filter.organizationId &&
-        point.userId === filter.userId &&
-        (!filter.workspaceId || point.workspaceId === filter.workspaceId)
+        (!filter.userId || point.userId === filter.userId) &&
+        (!filter.workspaceId || point.workspaceId === filter.workspaceId) &&
+        (!filter.sourceType || point.sourceType === filter.sourceType)
       )
       .map((point) => ({
         id: point.id,
