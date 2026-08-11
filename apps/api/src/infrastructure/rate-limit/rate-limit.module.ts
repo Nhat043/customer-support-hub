@@ -4,24 +4,40 @@ import { createClient } from "redis";
 import {
   InMemoryRateLimitStore,
   RATE_LIMIT_STORE,
-  RedisRateLimitStore
+  ResilientRedisRateLimitStore
 } from "../../common/rate-limit/rate-limit.store";
+import { MetricsService } from "../observability/metrics.service";
+import { ObservabilityModule } from "../observability/observability.module";
+import { RateLimitLifecycle } from "./rate-limit.lifecycle";
 
 @Module({
+  imports: [ObservabilityModule],
   providers: [
     {
       provide: RATE_LIMIT_STORE,
-      inject: [ConfigService],
-      useFactory: async (config: ConfigService) => {
+      inject: [ConfigService, MetricsService],
+      useFactory: (config: ConfigService, metrics: MetricsService) => {
         const redisUrl = config.get<string>("REDIS_URL");
-        if (!redisUrl) return new InMemoryRateLimitStore();
+        if (!redisUrl) {
+          metrics.setRateLimitStoreAvailability(false);
+          return new InMemoryRateLimitStore();
+        }
 
-        const client = createClient({ url: redisUrl });
-        client.on("error", (error) => console.error("Redis rate-limit error", error));
-        await client.connect();
-        return new RedisRateLimitStore(client);
+        const client = createClient({
+          url: redisUrl,
+          socket: {
+            reconnectStrategy: (attempt) => Math.min(100 * 2 ** attempt, 5_000)
+          }
+        });
+        const store = new ResilientRedisRateLimitStore(client, new InMemoryRateLimitStore(), metrics);
+        metrics.setRateLimitStoreAvailability(false);
+        client.on("ready", () => store.markReady());
+        client.on("error", (error) => store.markError(error));
+        void client.connect().catch((error) => store.markError(error));
+        return store;
       }
-    }
+    },
+    RateLimitLifecycle
   ],
   exports: [RATE_LIMIT_STORE]
 })

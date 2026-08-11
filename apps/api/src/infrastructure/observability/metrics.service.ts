@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { collectDefaultMetrics, Counter, Histogram, Registry } from "prom-client";
+import { collectDefaultMetrics, Counter, Gauge, Histogram, Registry } from "prom-client";
 
 @Injectable()
 export class MetricsService {
@@ -34,6 +34,17 @@ export class MetricsService {
     labelNames: ["tool_name"],
     registers: [this.registry]
   });
+  private readonly rateLimitFallbacks = new Counter({
+    name: "workflow_platform_rate_limit_fallback_total",
+    help: "Total rate-limit operations handled by the in-memory fallback",
+    labelNames: ["reason"],
+    registers: [this.registry]
+  });
+  private readonly rateLimitStoreAvailability = new Gauge({
+    name: "workflow_platform_rate_limit_redis_available",
+    help: "Whether the Redis-backed rate-limit store is currently available",
+    registers: [this.registry]
+  });
 
   constructor() {
     collectDefaultMetrics({ register: this.registry, prefix: "workflow_platform_" });
@@ -52,6 +63,14 @@ export class MetricsService {
 
   recordAgentToolCall(toolName: string) {
     this.agentToolCalls.inc({ tool_name: toolName });
+  }
+
+  recordRateLimitFallback(reason: "redis_unavailable" | "redis_command_failed") {
+    this.rateLimitFallbacks.inc({ reason });
+  }
+
+  setRateLimitStoreAvailability(available: boolean) {
+    this.rateLimitStoreAvailability.set(available ? 1 : 0);
   }
 
   contentType() {

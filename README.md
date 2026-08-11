@@ -44,6 +44,12 @@ NestJS API
 
 Tenant boundaries are enforced from the organization/workspace context and role guard, rather than trusting a client-provided tenant identifier alone.
 
+### Redis Rate-Limit Resilience
+
+Redis provides the shared rate-limit store when `REDIS_URL` is configured. Its connection retries with exponential backoff, and the API continues with a local in-memory limiter while Redis is unavailable. `GET /api/health` exposes the active mode as `redis`, `memory`, or `memory_fallback`; Prometheus exposes Redis availability and fallback counters.
+
+The fallback intentionally keeps the API available, but its counters are per API instance. During a Redis outage, a multi-replica deployment therefore has weaker global rate limiting until Redis reconnects. This status should be monitored before a production rollout.
+
 ## Stack
 
 - **Frontend:** Next.js 15, React 19, TypeScript
