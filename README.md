@@ -198,7 +198,7 @@ Conversation history remains in PostgreSQL per organization, user, and workspace
 
 ## Workspace Knowledge RAG
 
-Owners and admins can open **Knowledge** in a workspace and upload UTF-8 Markdown (`.md`) documents. The API stores document metadata and chunks in PostgreSQL, embeds each chunk, and indexes it in the configured vector store. It rejects duplicate document content within the same organization/workspace and retains a failed index record so it can be removed and retried safely.
+Owners and admins can open **Knowledge** in a workspace and upload UTF-8 Markdown (`.md`) documents. The API stores document metadata and chunks in PostgreSQL, embeds each chunk, and indexes it in the configured vector store. It rejects duplicate document content within the same organization/workspace and retains a failed index record so it can be retried without uploading again. Citations in the copilot link directly to the document and highlighted source chunk.
 
 At question time, the copilot retrieves only vectors with the current organization ID, active workspace ID, and `sourceType=knowledge`. Private agent memories use a different user-scoped filter and are never returned as workspace knowledge. Gemini receives the matching excerpts with source names, and the drawer renders source cards from the citations returned by the API. PDF/DOCX parsing is intentionally out of scope for this first Markdown-only ingestion path.
 
@@ -211,6 +211,18 @@ This repository includes a GCE deployment workflow as infrastructure reference o
 - No cloud credentials, GCP project IDs, or production secrets are committed to this repository.
 
 No deployment is required to explore or run the project locally.
+
+## Production Security Reference
+
+The local stack stays HTTP-only by design. The future GCE reference uses Caddy
+as the only public reverse proxy for HTTPS web traffic, API requests and
+Socket.IO. In production the environment validator requires HTTPS,
+`COOKIE_SECURE=true`, strong token secrets and a distinct `CSRF_SECRET`.
+Refresh-token rotation also requires a signed double-submit CSRF token.
+
+GCP Secret Manager, production database backups and alert receiver credentials
+are intentionally not configured until this project moves to a personal GCP
+account and domain.
 
 ## Roadmap
 

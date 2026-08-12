@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, Fragment, KeyboardEvent, ReactNode, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import { apiFetch, API_ORIGIN } from "@/lib/api";
@@ -25,7 +26,7 @@ function renderInlineMarkdown(text: string): ReactNode {
   });
 }
 
-function AssistantMessage({ text, citations = [] }: { text: string; citations?: KnowledgeCitation[] }) {
+function AssistantMessage({ orgSlug, text, citations = [] }: { orgSlug: string; text: string; citations?: KnowledgeCitation[] }) {
   return (
     <div className="agent-message-content">
       {text.split("\n").map((line, index) => {
@@ -40,11 +41,11 @@ function AssistantMessage({ text, citations = [] }: { text: string; citations?: 
         <section className="agent-citations" aria-label="Knowledge sources">
           <strong>Sources</strong>
           {citations.map((citation) => (
-            <article key={citation.chunkId}>
+            <Link className="agent-citation-link" href={`/orgs/${orgSlug}/knowledge?document=${encodeURIComponent(citation.documentId)}&chunk=${encodeURIComponent(citation.chunkId)}`} key={citation.chunkId}>
               <span>{citation.title}</span>
               <small>{citation.fileName}</small>
               <p>{citation.excerpt}</p>
-            </article>
+            </Link>
           ))}
         </section>
       ) : null}
@@ -217,7 +218,7 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
         {messages.map((item, index) => (
           <article className={`agent-message ${item.role}`} key={`${item.role}-${index}`}>
             <strong>{item.role === "user" ? "You" : "Assistant"}</strong>
-            {item.role === "assistant" ? <AssistantMessage text={item.text} citations={item.citations} /> : <p>{item.text}</p>}
+            {item.role === "assistant" ? <AssistantMessage orgSlug={orgSlug} text={item.text} citations={item.citations} /> : <p>{item.text}</p>}
           </article>
         ))}
       </div>

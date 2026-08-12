@@ -88,33 +88,55 @@ export class WorkspaceKnowledgeService {
     }));
     await this.prisma.knowledgeChunk.createMany({ data: records });
 
-    try {
-      for (const chunk of records) {
-        const vector = await this.embeddings.embed(chunk.content, "RETRIEVAL_DOCUMENT");
-        await this.vectorStore.upsert({
-          id: chunk.id,
-          organizationId,
-          workspaceId: resolvedWorkspaceId,
-          vector,
-          text: chunk.content,
-          sourceType: "knowledge",
-          sourceId: document.id
-        });
+    await this.index(document, organizationId, resolvedWorkspaceId, records);
+    return { ...document, status: "READY" as const, chunkCount: records.length };
+  }
+
+  async getDocument(organizationId: string, workspaceId: string | undefined, documentId: string) {
+    const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
+    const document = await this.prisma.knowledgeDocument.findFirst({
+      where: { id: documentId, organizationId, workspaceId: resolvedWorkspaceId },
+      select: {
+        id: true,
+        title: true,
+        fileName: true,
+        status: true,
+        chunkCount: true,
+        createdAt: true,
+        updatedAt: true,
+        uploadedBy: { select: { fullName: true, email: true } },
+        chunks: { select: { id: true, ordinal: true, content: true, createdAt: true }, orderBy: { ordinal: "asc" } }
       }
-      await this.prisma.knowledgeDocument.update({
-        where: { id: document.id },
-        data: { status: "READY" }
-      });
-      return { ...document, status: "READY" as const, chunkCount: records.length };
-    } catch (error) {
-      await this.vectorStore.delete(records.map((chunk) => chunk.id)).catch(() => undefined);
-      await this.prisma.knowledgeDocument.update({
-        where: { id: document.id },
-        data: { status: "FAILED" }
-      });
-      this.logger.error(`Knowledge indexing failed for ${document.id}: ${error instanceof Error ? error.message : "unknown error"}`);
-      throw new ServiceUnavailableException("Knowledge document could not be indexed. Remove it and upload again after the vector service recovers.");
+    });
+    if (!document) throw new NotFoundException("Knowledge document not found");
+    return document;
+  }
+
+  async retry(organizationId: string, workspaceId: string | undefined, documentId: string) {
+    const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
+    const document = await this.prisma.knowledgeDocument.findFirst({
+      where: { id: documentId, organizationId, workspaceId: resolvedWorkspaceId },
+      select: {
+        id: true,
+        title: true,
+        fileName: true,
+        status: true,
+        chunkCount: true,
+        chunks: { select: { id: true, content: true, ordinal: true, embeddingRef: true } }
+      }
+    });
+    if (!document) throw new NotFoundException("Knowledge document not found");
+    if (document.status !== "FAILED") {
+      throw new ConflictException("Only a failed knowledge document can be retried");
     }
+    if (document.chunks.length === 0) {
+      throw new ConflictException("This knowledge document has no chunks to index");
+    }
+
+    await this.vectorStore.delete(document.chunks.map((chunk) => chunk.id)).catch(() => undefined);
+    await this.prisma.knowledgeDocument.update({ where: { id: document.id }, data: { status: "INDEXING" } });
+    await this.index(document, organizationId, resolvedWorkspaceId, document.chunks);
+    return { id: document.id, title: document.title, fileName: document.fileName, status: "READY" as const, chunkCount: document.chunkCount };
   }
 
   async remove(organizationId: string, workspaceId: string | undefined, documentId: string) {
@@ -180,6 +202,34 @@ export class WorkspaceKnowledgeService {
     });
     if (!workspace) throw new NotFoundException("Active workspace not found");
     return workspace.id;
+  }
+
+  private async index(
+    document: { id: string },
+    organizationId: string,
+    workspaceId: string,
+    chunks: Array<{ id: string; content: string }>
+  ) {
+    try {
+      for (const chunk of chunks) {
+        const vector = await this.embeddings.embed(chunk.content, "RETRIEVAL_DOCUMENT");
+        await this.vectorStore.upsert({
+          id: chunk.id,
+          organizationId,
+          workspaceId,
+          vector,
+          text: chunk.content,
+          sourceType: "knowledge",
+          sourceId: document.id
+        });
+      }
+      await this.prisma.knowledgeDocument.update({ where: { id: document.id }, data: { status: "READY" } });
+    } catch (error) {
+      await this.vectorStore.delete(chunks.map((chunk) => chunk.id)).catch(() => undefined);
+      await this.prisma.knowledgeDocument.update({ where: { id: document.id }, data: { status: "FAILED" } });
+      this.logger.error(`Knowledge indexing failed for ${document.id}: ${error instanceof Error ? error.message : "unknown error"}`);
+      throw new ServiceUnavailableException("Knowledge document could not be indexed. Retry it after the embedding service recovers.");
+    }
   }
 }
 

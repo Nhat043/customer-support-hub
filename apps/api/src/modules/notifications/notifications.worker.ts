@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { EmailService } from "../../infrastructure/email/email.service";
+import { MetricsService } from "../../infrastructure/observability/metrics.service";
 
 type AssignmentPayload = { workflowItemId: string; assigneeId: string; title: string; dueAt?: string | null };
 type NotificationPayload = AssignmentPayload & { notificationType?: "REQUEST_ASSIGNED" | "SLA_DUE_SOON" | "SLA_OVERDUE"; notificationTitle?: string };
@@ -9,7 +10,11 @@ type NotificationPayload = AssignmentPayload & { notificationType?: "REQUEST_ASS
 export class NotificationsWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationsWorker.name);
   private timer?: NodeJS.Timeout;
-  constructor(private readonly prisma: PrismaService, private readonly email: EmailService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+    private readonly metrics: MetricsService
+  ) {}
 
   onModuleInit() {
     this.timer = setInterval(() => void this.processPending(), 15_000);
@@ -41,9 +46,11 @@ export class NotificationsWorker implements OnModuleInit, OnModuleDestroy {
         if (!delivery.sent) throw new Error("Email delivery failed");
       }
       await this.prisma.outboxEvent.update({ where: { id }, data: { status: "DELIVERED", deliveredAt: new Date(), lastError: null } });
+      this.metrics.recordNotificationDelivery("DELIVERED", event.type);
     } catch (error) {
       const delayMs = Math.min(60_000 * 2 ** Math.min(event.attempts, 6), 3_600_000);
       await this.prisma.outboxEvent.update({ where: { id }, data: { status: "FAILED", availableAt: new Date(Date.now() + delayMs), lastError: error instanceof Error ? error.message.slice(0, 500) : "Delivery failed" } });
+      this.metrics.recordNotificationDelivery("FAILED", event.type);
       this.logger.error(`Outbox event ${id} failed`);
     }
   }

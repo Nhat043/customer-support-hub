@@ -11,6 +11,7 @@ test("metrics service exposes HTTP, agent, and rate-limit resilience metrics", a
   metrics.recordAgentRun("SUCCEEDED", "mock", 0.02);
   metrics.recordRateLimitFallback("redis_unavailable");
   metrics.setRateLimitStoreAvailability(false);
+  metrics.recordNotificationDelivery("DELIVERED", "request.assigned");
 
   const output = await metrics.metrics();
   assert.match(output, /workflow_platform_http_requests_total/);
@@ -18,6 +19,7 @@ test("metrics service exposes HTTP, agent, and rate-limit resilience metrics", a
   assert.match(output, /workflow_platform_agent_runs_total/);
   assert.match(output, /workflow_platform_rate_limit_fallback_total/);
   assert.match(output, /workflow_platform_rate_limit_redis_available 0/);
+  assert.match(output, /workflow_platform_notification_deliveries_total/);
   assert.match(metrics.contentType(), /text\/plain/);
 });
 

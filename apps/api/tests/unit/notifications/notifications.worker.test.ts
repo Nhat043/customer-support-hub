@@ -8,7 +8,7 @@ test("worker creates one SLA event per request deadline", async () => {
     workflowItem: { findMany: async () => [{ id: "item-1", organizationId: "org-1", ownerId: "user-1", title: "Refund", dueAt: new Date(Date.now() + 3_600_000), status: "NEW" }] },
     outboxEvent: { createMany: async (input: any) => { calls.push(input); return { count: 1 }; }, findMany: async () => [] }
   };
-  const worker = new NotificationsWorker(prisma as any, {} as any);
+  const worker = new NotificationsWorker(prisma as any, {} as any, { recordNotificationDelivery: () => undefined } as any);
   await worker.processPending();
   assert.equal(calls[0].data[0].type, "request.sla_due_soon");
   assert.equal(calls[0].data[0].payload.notificationType, "SLA_DUE_SOON");
@@ -24,9 +24,11 @@ test("worker delivers an assignment event once and creates an in-app notificatio
     user: { findUniqueOrThrow: async () => ({ email: "member@example.com" }) },
     notification: { upsert: async () => ({}) }
   };
-  const worker = new NotificationsWorker(prisma as any, { isEnabled: () => false } as any);
+  const deliveries: any[] = [];
+  const worker = new NotificationsWorker(prisma as any, { isEnabled: () => false } as any, { recordNotificationDelivery: (...input: any[]) => deliveries.push(input) } as any);
   await worker.processPending();
   assert.equal(updates.at(-1).data.status, "DELIVERED");
+  assert.deepEqual(deliveries, [["DELIVERED", "request.assigned"]]);
 });
 
 test("worker retries a failed email delivery with backoff", async () => {
@@ -38,8 +40,10 @@ test("worker retries a failed email delivery with backoff", async () => {
     user: { findUniqueOrThrow: async () => ({ email: "member@example.com" }) },
     notification: { upsert: async () => ({}) }
   };
-  const worker = new NotificationsWorker(prisma as any, { isEnabled: () => true, sendRequestAssigned: async () => ({ sent: false }) } as any);
+  const deliveries: any[] = [];
+  const worker = new NotificationsWorker(prisma as any, { isEnabled: () => true, sendRequestAssigned: async () => ({ sent: false }) } as any, { recordNotificationDelivery: (...input: any[]) => deliveries.push(input) } as any);
   await worker.processPending();
   assert.equal(updates.at(-1).data.status, "FAILED");
   assert.equal(updates.at(-1).data.lastError, "Email delivery failed");
+  assert.deepEqual(deliveries, [["FAILED", "request.assigned"]]);
 });

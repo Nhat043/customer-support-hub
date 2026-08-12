@@ -19,10 +19,21 @@ export class KnowledgeController {
     return this.knowledge.list(req.organization.id, req.session?.workspaceId);
   }
 
+  @Get(":documentId")
+  getDocument(@Req() req: any, @Param("documentId") documentId: string) {
+    return this.knowledge.getDocument(req.organization.id, req.session?.workspaceId, documentId);
+  }
+
   @Post()
   @Roles("OWNER", "ADMIN")
   upload(@Req() req: any, @Body() dto: UploadKnowledgeDocumentDto) {
     return this.knowledge.upload(req.organization.id, req.session?.workspaceId, req.user.userId, dto);
+  }
+
+  @Post(":documentId/retry")
+  @Roles("OWNER", "ADMIN")
+  retry(@Req() req: any, @Param("documentId") documentId: string) {
+    return this.knowledge.retry(req.organization.id, req.session?.workspaceId, documentId);
   }
 
   @Delete(":documentId")

@@ -19,8 +19,12 @@ test("owner can create a workspace, add a request, and query it through the copi
   // Keep this scenario focused on the owner workflow, not navigation animation timing.
   await page.goto(`/orgs/${organizationSlug}/workflow-items`);
   await expect(page.getByRole("heading", { name: "Support queue" })).toBeVisible();
-  await page.getByPlaceholder("Short summary, e.g. Customer has not received an order").fill("Delivery is delayed");
-  await page.getByPlaceholder("Add the customer details, issue, and information your team needs").fill("Order #E2E-42 has not arrived.");
+
+  // The queue heading is server-rendered; the owner-only form appears after sessionStorage hydrates.
+  const createRequestForm = page.getByRole("heading", { name: "Log a customer request" }).locator("..").locator("..");
+  await expect(createRequestForm).toBeVisible();
+  await createRequestForm.getByPlaceholder("Short summary, e.g. Customer has not received an order").fill("Delivery is delayed");
+  await createRequestForm.getByPlaceholder("Add the customer details, issue, and information your team needs").fill("Order #E2E-42 has not arrived.");
   await page.getByRole("button", { name: "Add to support queue" }).click();
   await expect(page.getByText("Delivery is delayed", { exact: true })).toBeVisible();
 

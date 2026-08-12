@@ -14,6 +14,8 @@ import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { Public } from "../../common/decorators/public.decorator";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { AuthRateLimitGuard } from "../../common/guards/auth-rate-limit.guard";
+import { CsrfGuard } from "../../common/guards/csrf.guard";
+import { createCsrfToken } from "../../common/security/csrf";
 import { AuthService } from "./auth.service";
 import {
   ConfirmPasswordResetDto,
@@ -90,7 +92,7 @@ export class AuthController {
   }
 
   @Public()
-  @UseGuards(AuthRateLimitGuard)
+  @UseGuards(AuthRateLimitGuard, CsrfGuard)
   @Post("refresh")
   async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const refreshToken = req.cookies?.refreshToken as string | undefined;
@@ -167,6 +169,21 @@ export class AuthController {
       ...cookieOptions,
     });
     res.cookie("sessionId", sessionId, cookieOptions);
+    res.cookie("csrfToken", createCsrfToken(this.getCsrfSecret(), sessionId), {
+      secure: cookieOptions.secure,
+      sameSite: cookieOptions.sameSite,
+      domain: cookieOptions.domain,
+      path: "/",
+      maxAge: cookieOptions.maxAge,
+    });
+  }
+
+  private getCsrfSecret() {
+    const secret = this.configService.get<string>("CSRF_SECRET")
+      ?? this.configService.get<string>("REFRESH_TOKEN_PEPPER")
+      ?? this.configService.get<string>("JWT_REFRESH_SECRET");
+    if (!secret) throw new Error("CSRF_SECRET or refresh token pepper is required");
+    return secret;
   }
 
   private getCookieDomain() {
@@ -187,5 +204,11 @@ export class AuthController {
     };
     res.clearCookie("refreshToken", cookieOptions);
     res.clearCookie("sessionId", cookieOptions);
+    res.clearCookie("csrfToken", {
+      path: "/",
+      domain: this.getCookieDomain(),
+      secure: this.configService.get("COOKIE_SECURE") === "true",
+      sameSite: "lax" as const,
+    });
   }
 }

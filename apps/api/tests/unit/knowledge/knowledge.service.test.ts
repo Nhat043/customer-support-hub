@@ -178,6 +178,75 @@ test("knowledge list and delete remain scoped to the active workspace", async ()
   assert.equal(deletedDocumentId, "document-a");
 });
 
+test("knowledge source detail remains tenant/workspace scoped and returns ordered chunks", async () => {
+  let receivedWhere: Record<string, unknown> | undefined;
+  const service = new WorkspaceKnowledgeService({
+    workspace: { findFirst: async () => ({ id: "workspace-a" }) },
+    knowledgeDocument: {
+      findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+        receivedWhere = where;
+        return {
+          id: "document-a",
+          title: "Refund policy",
+          fileName: "refund.md",
+          status: "READY",
+          chunkCount: 1,
+          uploadedBy: { fullName: "Owner", email: "owner@example.com" },
+          chunks: [{ id: "chunk-a", ordinal: 0, content: "Refund within five days.", createdAt: new Date("2026-01-01") }]
+        };
+      }
+    }
+  } as any, {} as any, {} as any);
+
+  const detail = await service.getDocument("org-a", "workspace-a", "document-a");
+
+  assert.deepEqual(receivedWhere, { id: "document-a", organizationId: "org-a", workspaceId: "workspace-a" });
+  assert.equal(detail.chunks[0]?.content, "Refund within five days.");
+});
+
+test("failed knowledge document can retry existing chunks without another upload", async () => {
+  const updates: Array<Record<string, unknown>> = [];
+  const deletedVectors: string[][] = [];
+  const indexed: Array<Record<string, unknown>> = [];
+  const service = new WorkspaceKnowledgeService({
+    workspace: { findFirst: async () => ({ id: "workspace-a" }) },
+    knowledgeDocument: {
+      findFirst: async () => ({
+        id: "document-failed",
+        title: "Delivery policy",
+        fileName: "delivery.md",
+        status: "FAILED",
+        chunkCount: 1,
+        chunks: [{ id: "chunk-a", ordinal: 0, content: "Escalate after two days.", embeddingRef: "test:document-failed:0" }]
+      }),
+      update: async ({ data }: { data: Record<string, unknown> }) => { updates.push(data); return data; }
+    }
+  } as any, { embed: async () => [1, 0] } as any, {
+    name: "test-vector",
+    search: async () => [],
+    delete: async (ids: string[]) => { deletedVectors.push(ids); },
+    upsert: async (point: Record<string, unknown>) => { indexed.push(point); }
+  } as any);
+
+  const result = await service.retry("org-a", "workspace-a", "document-failed");
+
+  assert.equal(result.status, "READY");
+  assert.deepEqual(deletedVectors, [["chunk-a"]]);
+  assert.equal(indexed[0]?.sourceId, "document-failed");
+  assert.deepEqual(updates, [{ status: "INDEXING" }, { status: "READY" }]);
+});
+
+test("knowledge retry rejects a document that is not in failed state", async () => {
+  const service = new WorkspaceKnowledgeService({
+    workspace: { findFirst: async () => ({ id: "workspace-a" }) },
+    knowledgeDocument: {
+      findFirst: async () => ({ id: "document-ready", title: "Ready", fileName: "ready.md", status: "READY", chunkCount: 1, chunks: [{ id: "chunk-a", content: "content", ordinal: 0 }] })
+    }
+  } as any, {} as any, {} as any);
+
+  await assert.rejects(service.retry("org-a", "workspace-a", "document-ready"), /Only a failed knowledge document can be retried/);
+});
+
 test("knowledge retrieval is empty without an active workspace", async () => {
   const service = new WorkspaceKnowledgeService({} as any, {
     embed: async () => assert.fail("embedding must not run")

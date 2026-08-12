@@ -35,7 +35,7 @@ test("login sets HttpOnly secure refresh and session cookies", async () => {
     authService as never,
     {
       get: (key: string) =>
-        ({ COOKIE_SECURE: "true", COOKIE_DOMAIN: ".example.com" })[key],
+        ({ COOKIE_SECURE: "true", COOKIE_DOMAIN: ".example.com", CSRF_SECRET: "c".repeat(32) })[key],
     } as never,
   );
   const res = response();
@@ -46,11 +46,14 @@ test("login sets HttpOnly secure refresh and session cookies", async () => {
   );
 
   assert.equal(body.accessToken, "access-token");
-  assert.equal(res.cookies.length, 2);
+  assert.equal(res.cookies.length, 3);
   assert.equal(res.cookies[0]?.options.httpOnly, true);
   assert.equal(res.cookies[0]?.options.secure, true);
   assert.equal(res.cookies[0]?.options.sameSite, "lax");
   assert.equal(res.cookies[0]?.options.path, "/api/auth");
+  assert.equal(res.cookies[2]?.name, "csrfToken");
+  assert.equal(res.cookies[2]?.options.httpOnly, undefined);
+  assert.equal(res.cookies[2]?.options.path, "/");
 });
 
 test("logout all and deactivate clear both HttpOnly cookies", async () => {
@@ -63,7 +66,7 @@ test("logout all and deactivate clear both HttpOnly cookies", async () => {
     authService as never,
     {
       get: (key: string) =>
-        ({ COOKIE_SECURE: "true", COOKIE_DOMAIN: ".example.com" })[key],
+        ({ COOKIE_SECURE: "true", COOKIE_DOMAIN: ".example.com", CSRF_SECRET: "c".repeat(32) })[key],
     } as never,
   );
   const logoutRes = response();
@@ -75,7 +78,7 @@ test("logout all and deactivate clear both HttpOnly cookies", async () => {
   assert.deepEqual(calls, ["logout-all", "deactivate"]);
   assert.deepEqual(
     logoutRes.cleared.map((cookie) => cookie.name),
-    ["refreshToken", "sessionId"],
+    ["refreshToken", "sessionId", "csrfToken"],
   );
   assert.equal(deactivateRes.cleared[0]?.options.secure, true);
 });
@@ -91,7 +94,7 @@ test("refresh rotates cookies and returns the new access token", async () => {
   };
   const controller = new AuthController(
     authService as never,
-    { get: () => "true" } as never,
+    { get: (key: string) => key === "CSRF_SECRET" ? "c".repeat(32) : "true" } as never,
   );
   const res = response();
 
@@ -103,7 +106,7 @@ test("refresh rotates cookies and returns the new access token", async () => {
   assert.equal(body.accessToken, "session-1-refresh-1-access");
   assert.deepEqual(
     res.cookies.map((cookie) => cookie.name),
-    ["refreshToken", "sessionId"],
+    ["refreshToken", "sessionId", "csrfToken"],
   );
 });
 

@@ -21,6 +21,11 @@ export class ApiError extends Error {
 
 let refreshPromise: Promise<string | null> | null = null;
 
+function csrfToken() {
+  if (typeof document === "undefined") return undefined;
+  return document.cookie.split("; ").find((cookie) => cookie.startsWith("csrfToken="))?.slice("csrfToken=".length);
+}
+
 function toSafeErrorMessage(status: number) {
   if (status === 401) {
     return "Email or password is incorrect.";
@@ -47,7 +52,8 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
-      credentials: "include"
+      credentials: "include",
+      headers: csrfToken() ? { "x-csrf-token": csrfToken()! } : undefined
     })
       .then(async (response) => {
         if (!response.ok) return null;
@@ -84,6 +90,7 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
     headers: {
       "Content-Type": "application/json",
       ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
+      ...(csrfToken() ? { "x-csrf-token": csrfToken()! } : {}),
       ...(options.headers ?? {})
     }
   });

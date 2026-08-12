@@ -81,6 +81,7 @@ export function validateEnvironment(environment: Environment): Environment {
       passwordResetPepper,
       errors,
     );
+    validateSecret("CSRF_SECRET", environment.CSRF_SECRET, errors);
   }
 
   if (errors.length > 0) {

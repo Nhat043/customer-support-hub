@@ -13,3 +13,10 @@ scrape_configs:
         labels:
           service: api
           environment: local
+  - job_name: qdrant
+    metrics_path: /metrics
+    static_configs:
+      - targets: [qdrant:6333]
+        labels:
+          service: qdrant
+          environment: local
