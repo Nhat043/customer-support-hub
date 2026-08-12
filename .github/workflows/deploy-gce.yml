@@ -42,6 +42,7 @@ jobs:
       GCE_INSTANCE: ${{ vars.GCE_INSTANCE }}
       GCE_ZONE: ${{ vars.GCE_ZONE }}
       PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
+      CADDY_DOMAIN: ${{ vars.CADDY_DOMAIN }}
       IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
 
     steps:
@@ -50,7 +51,7 @@ jobs:
 
       - name: Validate deployment configuration
         run: |
-          for variable in GCP_PROJECT_ID GAR_LOCATION GAR_REPOSITORY GCE_INSTANCE GCE_ZONE PUBLIC_API_BASE_URL; do
+          for variable in GCP_PROJECT_ID GAR_LOCATION GAR_REPOSITORY GCE_INSTANCE GCE_ZONE PUBLIC_API_BASE_URL CADDY_DOMAIN; do
             if [ -z "${!variable}" ]; then
               echo "Missing required GitHub Actions variable: ${variable}"
               exit 1
@@ -105,6 +106,12 @@ jobs:
             deploy/gce/docker-compose.production.yml \
             "${GCE_INSTANCE}:/tmp/workflow-platform-compose.yml"
 
+          gcloud compute scp \
+            --quiet \
+            --zone "$GCE_ZONE" \
+            deploy/gce/Caddyfile \
+            "${GCE_INSTANCE}:/tmp/workflow-platform-Caddyfile"
+
           gcloud compute ssh \
             --quiet \
             --zone "$GCE_ZONE" \
@@ -113,9 +120,10 @@ jobs:
               test -f /etc/workflow-platform/api.env
               install -d -m 0750 \$HOME/workflow-platform
               install -m 0644 /tmp/workflow-platform-compose.yml \$HOME/workflow-platform/docker-compose.production.yml
+              install -m 0644 /tmp/workflow-platform-Caddyfile \$HOME/workflow-platform/Caddyfile
               docker pull '${API_IMAGE}'
               docker pull '${WEB_IMAGE}'
               docker run --rm --env-file /etc/workflow-platform/api.env '${API_IMAGE}' /app/node_modules/.bin/prisma migrate deploy --schema /app/prisma/schema.prisma
               cd \$HOME/workflow-platform
-              API_IMAGE='${API_IMAGE}' WEB_IMAGE='${WEB_IMAGE}' docker compose -f docker-compose.production.yml up -d --remove-orphans
+              API_IMAGE='${API_IMAGE}' WEB_IMAGE='${WEB_IMAGE}' CADDY_DOMAIN='${CADDY_DOMAIN}' docker compose -f docker-compose.production.yml up -d --remove-orphans
               docker image prune --force"

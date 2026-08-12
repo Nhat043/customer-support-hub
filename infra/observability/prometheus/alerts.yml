@@ -19,3 +19,43 @@ groups:
           severity: warning
         annotations:
           summary: Agent runs have failed in the last 10 minutes
+
+      - alert: ApiUnavailable
+        expr: up{job="workflow-platform-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Customer Support Hub API is unavailable
+
+      - alert: QdrantUnavailable
+        expr: up{job="qdrant"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Qdrant semantic retrieval service is unavailable
+
+      - alert: RedisRateLimitFallbackActive
+        expr: workflow_platform_rate_limit_redis_available < 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis rate limiting is unavailable; API is using in-memory fallback
+
+      - alert: HighLoginFailureRate
+        expr: sum(increase(workflow_platform_http_requests_total{route="/api/auth/login",status_code="401"}[5m])) >= 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Ten or more failed login attempts occurred in five minutes
+
+      - alert: NotificationDeliveryFailuresDetected
+        expr: increase(workflow_platform_notification_deliveries_total{status="FAILED"}[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Notification outbox delivery has failed in the last 10 minutes

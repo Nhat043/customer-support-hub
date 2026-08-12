@@ -6,6 +6,7 @@ import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
 import { NotificationsWorker } from "./notifications.worker";
 import { NotificationsController } from "./notifications.controller";
+import { ObservabilityModule } from "../../infrastructure/observability/observability.module";
 
-@Module({ imports: [PrismaModule, EmailModule, JwtModule.register({})], controllers: [NotificationsController], providers: [NotificationsWorker, JwtGuard, OrgGuard] })
+@Module({ imports: [PrismaModule, EmailModule, ObservabilityModule, JwtModule.register({})], controllers: [NotificationsController], providers: [NotificationsWorker, JwtGuard, OrgGuard] })
 export class NotificationsModule {}

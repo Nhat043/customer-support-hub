@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 
@@ -15,10 +15,18 @@ type KnowledgeDocument = {
   uploadedBy: { fullName: string; email: string };
 };
 
+type KnowledgeDocumentDetail = KnowledgeDocument & {
+  chunks: Array<{ id: string; ordinal: number; content: string; createdAt: string }>;
+};
+
 export default function KnowledgePage() {
   const params = useParams<{ orgSlug: string }>();
+  const searchParams = useSearchParams();
   const [orgSlug, setOrgSlug] = useState("demo");
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<KnowledgeDocumentDetail | null>(null);
+  const [loadingDocument, setLoadingDocument] = useState(false);
+  const [retryingDocumentId, setRetryingDocumentId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
@@ -35,6 +43,15 @@ export default function KnowledgePage() {
     void loadDocuments();
   }, [orgSlug]);
 
+  useEffect(() => {
+    const documentId = searchParams.get("document");
+    if (!documentId || orgSlug === "demo") {
+      setSelectedDocument(null);
+      return;
+    }
+    void loadDocument(documentId);
+  }, [orgSlug, searchParams]);
+
   async function loadDocuments() {
     const session = getSession();
     if (!session) return;
@@ -45,6 +62,21 @@ export default function KnowledgePage() {
       setError(loadError instanceof Error ? loadError.message : "Could not load workspace knowledge.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadDocument(documentId: string) {
+    const session = getSession();
+    if (!session) return;
+    setLoadingDocument(true);
+    setError("");
+    try {
+      setSelectedDocument(await apiFetch<KnowledgeDocumentDetail>(`/orgs/${orgSlug}/knowledge/${documentId}`, { accessToken: session.accessToken }));
+    } catch (loadError) {
+      setSelectedDocument(null);
+      setError(loadError instanceof Error ? loadError.message : "Could not load this knowledge source.");
+    } finally {
+      setLoadingDocument(false);
     }
   }
 
@@ -96,9 +128,28 @@ export default function KnowledgePage() {
         method: "DELETE",
         accessToken: session.accessToken
       });
+      if (selectedDocument?.id === documentId) setSelectedDocument(null);
       await loadDocuments();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not delete this knowledge document.");
+    }
+  }
+
+  async function retry(documentId: string) {
+    const session = getSession();
+    if (!session || !canManage || retryingDocumentId) return;
+    setRetryingDocumentId(documentId);
+    setError("");
+    try {
+      await apiFetch(`/orgs/${orgSlug}/knowledge/${documentId}/retry`, {
+        method: "POST",
+        accessToken: session.accessToken
+      });
+      await Promise.all([loadDocuments(), loadDocument(documentId)]);
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Could not retry this knowledge document.");
+    } finally {
+      setRetryingDocumentId(null);
     }
   }
 
@@ -132,7 +183,7 @@ export default function KnowledgePage() {
         <div className="badge">How citations work</div>
         <h3>Tenant-safe retrieval</h3>
         <p className="muted">The vector search always filters by your organization, active workspace, and the knowledge source type. Private copilot memory is never searched as workspace knowledge.</p>
-        <p className="muted">A failed index stays visible so an owner can delete it and retry after the embedding service recovers.</p>
+        <p className="muted">A failed index stays visible. An owner or admin can retry the existing document after the embedding service recovers, without uploading it again.</p>
       </aside>
 
       <section className="card grid" style={{ gridColumn: "1 / -1" }}>
@@ -151,12 +202,38 @@ export default function KnowledgePage() {
                   <p className="muted">{document.fileName} · {document.chunkCount} chunks · {document.status.toLowerCase()}</p>
                   <p className="muted">Uploaded by {document.uploadedBy.fullName} on {new Date(document.createdAt).toLocaleString()}</p>
                 </div>
-                {canManage ? <button className="btn danger compact" type="button" onClick={() => void remove(document.id)}>Delete</button> : null}
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="btn secondary compact" type="button" onClick={() => void loadDocument(document.id)}>View source</button>
+                  {canManage && document.status === "FAILED" ? <button className="btn primary compact" type="button" disabled={retryingDocumentId === document.id} onClick={() => void retry(document.id)}>{retryingDocumentId === document.id ? "Retrying..." : "Retry index"}</button> : null}
+                  {canManage ? <button className="btn danger compact" type="button" onClick={() => void remove(document.id)}>Delete</button> : null}
+                </div>
               </div>
             </article>
           ))}
         </div>
       </section>
+
+      {loadingDocument ? <section className="card" style={{ gridColumn: "1 / -1" }}><p className="muted">Loading knowledge source...</p></section> : null}
+      {selectedDocument ? (
+        <section className="card grid" style={{ gridColumn: "1 / -1" }}>
+          <div className="row" style={{ justifyContent: "space-between", gap: 16 }}>
+            <div>
+              <div className="badge">Source document</div>
+              <h2>{selectedDocument.title}</h2>
+              <p className="muted">{selectedDocument.fileName} · {selectedDocument.chunkCount} chunks · {selectedDocument.status.toLowerCase()}</p>
+            </div>
+            <button className="btn secondary compact" type="button" onClick={() => setSelectedDocument(null)}>Close source</button>
+          </div>
+          <div className="list">
+            {selectedDocument.chunks.map((chunk) => (
+              <article className={`card${searchParams.get("chunk") === chunk.id ? " knowledge-chunk-highlight" : ""}`} id={`chunk-${chunk.id}`} key={chunk.id}>
+                <strong>Chunk {chunk.ordinal + 1}</strong>
+                <p className="knowledge-source-content">{chunk.content}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }

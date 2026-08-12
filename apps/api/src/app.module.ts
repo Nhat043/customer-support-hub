@@ -15,6 +15,7 @@ import { ObservabilityModule } from "./infrastructure/observability/observabilit
 import { RequestObservabilityMiddleware } from "./infrastructure/observability/request-observability.middleware";
 import { validateEnvironment } from "./config/validate-environment";
 import { KnowledgeModule } from "./modules/knowledge/knowledge.module";
+import { SecurityHeadersMiddleware } from "./common/security/security-headers.middleware";
 
 @Module({
   imports: [
@@ -37,9 +38,10 @@ import { KnowledgeModule } from "./modules/knowledge/knowledge.module";
     KnowledgeModule,
     HealthModule,
   ],
+  providers: [SecurityHeadersMiddleware],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestObservabilityMiddleware).forRoutes({ path: "*path", method: RequestMethod.ALL });
+    consumer.apply(SecurityHeadersMiddleware, RequestObservabilityMiddleware).forRoutes({ path: "*path", method: RequestMethod.ALL });
   }
 }

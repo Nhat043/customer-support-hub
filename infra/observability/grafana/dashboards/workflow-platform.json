@@ -1,10 +1,10 @@
 {
-  "uid": "workflow-platform-overview",
-  "title": "Workflow Platform Overview",
-  "tags": ["workflow-platform", "api", "agent"],
+  "uid": "customer-support-hub-overview",
+  "title": "Customer Support Hub Operations",
+  "tags": ["customer-support-hub", "api", "agent"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "15s",
   "panels": [
     {
@@ -26,18 +26,61 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Agent Runs by Status",
+      "title": "Login Failures",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "sum(rate(workflow_platform_agent_runs_total[5m])) by (status)", "refId": "A" }],
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+      "targets": [{ "expr": "sum(increase(workflow_platform_http_requests_total{route=\"/api/auth/login\",status_code=\"401\"}[5m]))", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 }
     },
     {
       "id": 4,
+      "type": "timeseries",
+      "title": "Agent Latency and Failures",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(workflow_platform_agent_run_duration_seconds_bucket[5m])) by (le, model))", "refId": "A" },
+        { "expr": "sum(rate(workflow_platform_agent_runs_total{status=\"FAILED\"}[5m]))", "refId": "B" }
+      ],
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Agent Tool Calls",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(workflow_platform_agent_tool_calls_total[5m])) by (tool_name)", "refId": "A" }],
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Redis Rate-limit Availability",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "workflow_platform_rate_limit_redis_available", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 16 }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Notification Delivery Failures",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(rate(workflow_platform_notification_deliveries_total{status=\"FAILED\"}[5m])) by (event_type)", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 9, "x": 6, "y": 16 }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "API and Qdrant Availability",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "up{job=~\"workflow-platform-api|qdrant\"}", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 9, "x": 15, "y": 16 }
+    },
+    {
+      "id": 9,
       "type": "logs",
       "title": "API Logs",
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [{ "expr": "{compose_service=\"api\"}", "refId": "A" }],
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 }
     }
   ]
 }

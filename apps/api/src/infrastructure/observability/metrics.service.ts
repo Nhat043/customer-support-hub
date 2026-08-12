@@ -45,6 +45,12 @@ export class MetricsService {
     help: "Whether the Redis-backed rate-limit store is currently available",
     registers: [this.registry]
   });
+  private readonly notificationDeliveries = new Counter({
+    name: "workflow_platform_notification_deliveries_total",
+    help: "Total notification outbox delivery attempts by final status and event type",
+    labelNames: ["status", "event_type"],
+    registers: [this.registry]
+  });
 
   constructor() {
     collectDefaultMetrics({ register: this.registry, prefix: "workflow_platform_" });
@@ -71,6 +77,10 @@ export class MetricsService {
 
   setRateLimitStoreAvailability(available: boolean) {
     this.rateLimitStoreAvailability.set(available ? 1 : 0);
+  }
+
+  recordNotificationDelivery(status: "DELIVERED" | "FAILED", eventType: string) {
+    this.notificationDeliveries.inc({ status, event_type: eventType });
   }
 
   contentType() {
