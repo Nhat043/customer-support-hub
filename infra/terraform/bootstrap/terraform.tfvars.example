@@ -1,0 +1,4 @@
+# GCS bucket names are globally unique. Adjust the suffix if this name is taken.
+project_id        = "artful-memento-473909-k0"
+state_bucket_name = "customer-support-hub-artful-memento-473909-k0-tfstate"
+location          = "ASIA-SOUTHEAST1"

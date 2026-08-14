@@ -27,6 +27,16 @@ function renderInlineMarkdown(text: string): ReactNode {
 }
 
 function AssistantMessage({ orgSlug, text, citations = [] }: { orgSlug: string; text: string; citations?: KnowledgeCitation[] }) {
+  const sourceGroups = citations.reduce<Array<KnowledgeCitation & { matchingPassageCount: number }>>((groups, citation) => {
+    const existing = groups.find((group) => group.documentId === citation.documentId);
+    if (existing) {
+      existing.matchingPassageCount += 1;
+      return groups;
+    }
+    groups.push({ ...citation, matchingPassageCount: 1 });
+    return groups;
+  }, []);
+
   return (
     <div className="agent-message-content">
       {text.split("\n").map((line, index) => {
@@ -37,13 +47,14 @@ function AssistantMessage({ orgSlug, text, citations = [] }: { orgSlug: string; 
         if (!line.trim()) return <div className="agent-message-spacer" key={index} />;
         return <p key={index}>{renderInlineMarkdown(line)}</p>;
       })}
-      {citations.length ? (
+      {sourceGroups.length ? (
         <section className="agent-citations" aria-label="Knowledge sources">
           <strong>Sources</strong>
-          {citations.map((citation) => (
+          {sourceGroups.map((citation) => (
             <Link className="agent-citation-link" href={`/orgs/${orgSlug}/knowledge?document=${encodeURIComponent(citation.documentId)}&chunk=${encodeURIComponent(citation.chunkId)}`} key={citation.chunkId}>
               <span>{citation.title}</span>
               <small>{citation.fileName}</small>
+              {citation.matchingPassageCount > 1 ? <em>{citation.matchingPassageCount} matching passages</em> : null}
               <p>{citation.excerpt}</p>
             </Link>
           ))}

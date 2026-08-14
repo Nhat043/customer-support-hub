@@ -8,4 +8,6 @@ test("agent knowledge service loads the shipped Customer Support Hub Markdown kn
   assert.match(knowledge, /Customer Support Hub/);
   assert.match(knowledge, /Never generate or execute SQL/);
   assert.match(knowledge, /navigation tool/);
+  assert.match(knowledge, /Request attachments/);
+  assert.match(knowledge, /10 MB/);
 });

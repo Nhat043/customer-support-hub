@@ -79,6 +79,26 @@ test("member cannot assign a customer request", async () => {
   );
 });
 
+test("member can update a customer request status without changing assignment or deadline", async () => {
+  const calls: { update?: any; event?: any } = {};
+  const prisma = {
+    workflowItem: { findFirst: async () => currentItem },
+    $transaction: async (callback: any) => callback({
+      workflowItem: { update: async ({ data }: any) => { calls.update = data; return { ...currentItem, ...data }; } },
+      workflowEvent: { create: async ({ data }: any) => { calls.event = data; return data; } },
+      outboxEvent: { create: async () => ({ id: "outbox-1" }) }
+    })
+  };
+  const service = new WorkflowItemsService(prisma as any);
+
+  await service.update("org-1", "item-1", { status: "IN_PROGRESS", ownerId: undefined, dueAt: undefined }, { userId: "member-1", role: "MEMBER" });
+
+  assert.equal(calls.update.status, "IN_PROGRESS");
+  assert.equal(calls.update.ownerId, null);
+  assert.equal(calls.update.dueAt, null);
+  assert.equal(calls.event.eventType, "UPDATED");
+});
+
 test("owner assigns an active team member and deadline with an assignment event", async () => {
   const calls: { update?: any; event?: any } = {};
   const prisma = {

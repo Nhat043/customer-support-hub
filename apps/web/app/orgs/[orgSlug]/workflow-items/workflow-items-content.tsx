@@ -35,6 +35,10 @@ function readableLabel(value: string) {
     .join(" ");
 }
 
+function workflowStatusClass(status: string) {
+  return `workflow-status--${status.toLowerCase().replaceAll("_", "-")}`;
+}
+
 export function WorkflowItemsContent({ orgSlug, filters }: { orgSlug: string; filters: Filters }) {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [items, setItems] = useState<WorkflowItem[]>([]);
@@ -110,7 +114,7 @@ export function WorkflowItemsContent({ orgSlug, filters }: { orgSlug: string; fi
           <div>
             <div className="badge">Customer requests</div>
             <h2>Support queue</h2>
-            <p className="muted">Create a request, keep its status updated, and resolve it with your team.</p>
+            <p className="muted">Create a request, keep its status updated, and open an existing request to add comments or attachments.</p>
           </div>
         </div>
 
@@ -132,8 +136,9 @@ export function WorkflowItemsContent({ orgSlug, filters }: { orgSlug: string; fi
               <p className="muted">Handled by: {item.owner?.fullName ?? "Unassigned"}</p>
               <p className="muted">{item.dueAt ? `Due ${new Date(item.dueAt).toLocaleString()}${new Date(item.dueAt) < new Date() && item.status !== "CLOSED" ? " (overdue)" : ""}` : "No deadline set"}</p>
               <div className="row">
-                {canEdit ? <select className="select" value={item.status} onChange={(event) => void updateStatus(item.id, event.target.value)} style={{ maxWidth: 180 }}>{statusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select> : <span className="badge">{readableLabel(item.status)}</span>}
+                {canEdit ? <select className={`select workflow-status-select ${workflowStatusClass(item.status)}`} value={item.status} onChange={(event) => void updateStatus(item.id, event.target.value)} style={{ maxWidth: 180 }}>{statusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select> : <span className={`badge workflow-status-badge ${workflowStatusClass(item.status)}`}>{readableLabel(item.status)}</span>}
                 <span className="badge">{readableLabel(item.priority)} priority</span>
+                <Link className="btn secondary" href={`/orgs/${orgSlug}/workflow-items/${item.id}`}>Open request</Link>
               </div>
             </article>
           ))}

@@ -48,6 +48,23 @@ export function validateEnvironment(environment: Environment): Environment {
   if (environment.EMBEDDING_DIMENSIONS && (!/^\d+$/.test(environment.EMBEDDING_DIMENSIONS) || Number(environment.EMBEDDING_DIMENSIONS) < 1)) {
     errors.push("EMBEDDING_DIMENSIONS must be a positive integer");
   }
+  for (const variable of ["AGENT_RATE_LIMIT_USER_PER_MINUTE", "AGENT_RATE_LIMIT_ORGANIZATION_PER_MINUTE"]) {
+    const value = environment[variable];
+    if (value && (!/^\d+$/.test(value) || Number(value) < 1)) {
+      errors.push(`${variable} must be a positive integer`);
+    }
+  }
+
+  if (environment.STORAGE_PROVIDER && !["local", "gcs"].includes(environment.STORAGE_PROVIDER)) {
+    errors.push("STORAGE_PROVIDER must be local or gcs");
+  }
+  if (environment.STORAGE_PROVIDER === "gcs") {
+    for (const variable of ["GCS_PROJECT_ID", "GCS_ATTACHMENT_BUCKET"]) {
+      if (!environment[variable]) {
+        errors.push(`${variable} is required when STORAGE_PROVIDER is gcs`);
+      }
+    }
+  }
 
   for (const variable of [
     "ACCESS_TOKEN_TTL",

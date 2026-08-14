@@ -23,12 +23,13 @@ function createGatewayHarness() {
   } as any;
   const jwtService = { verify: () => ({ userId: "user-1", sessionId: "session-1" }) } as any;
   const config = { getOrThrow: () => "test-secret" } as any;
+  const agentRateLimit = { enforce: async () => undefined } as any;
   const prisma = {
     session: { findUnique: async () => ({ status: "ACTIVE", expiresAt: new Date(Date.now() + 60_000), user: { status: "ACTIVE" } }) },
     organization: { findUnique: async () => ({ id: "org-1" }) },
     membership: { findUnique: async () => ({ role: "MEMBER", status: "ACTIVE" }) }
   } as any;
-  return { gateway: new AgentGateway(agentService, jwtService, config, prisma), socket, emitted, jwtService, prisma };
+  return { gateway: new AgentGateway(agentService, jwtService, config, prisma, agentRateLimit), socket, emitted, jwtService, prisma, agentRateLimit };
 }
 
 test("gateway emits streaming lifecycle events", async () => {
@@ -75,6 +76,34 @@ test("gateway rejects missing idempotency key and invalid message", async () => 
     idempotencyKey: "invalid-message-key"
   });
   assert.match(String((invalidMessage.emitted.at(-1)?.payload as any).message), /valid agent message/);
+});
+
+test("gateway does not let a Viewer bypass the REST agent role policy", async () => {
+  const { gateway, socket, emitted, prisma } = createGatewayHarness();
+  prisma.membership.findUnique = async () => ({ role: "VIEWER", status: "ACTIVE" });
+
+  const result = await gateway.run(socket, {
+    orgSlug: "demo-org",
+    message: "hello",
+    idempotencyKey: "viewer-key"
+  });
+
+  assert.deepEqual(result, { accepted: false });
+  assert.match(String((emitted.at(-1)?.payload as any).message), /cannot run the AI assistant/);
+});
+
+test("gateway rejects an agent run when the shared rate limit is exceeded", async () => {
+  const { gateway, socket, emitted, agentRateLimit } = createGatewayHarness();
+  agentRateLimit.enforce = async () => { throw new Error("AI request limit reached"); };
+
+  const result = await gateway.run(socket, {
+    orgSlug: "demo-org",
+    message: "hello",
+    idempotencyKey: "rate-limited-key"
+  });
+
+  assert.deepEqual(result, { accepted: false });
+  assert.match(String((emitted.at(-1)?.payload as any).message), /AI request limit reached/);
 });
 
 test("gateway rejects invalid token, expired session, organization and membership", async () => {

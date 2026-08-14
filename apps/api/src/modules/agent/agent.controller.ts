@@ -3,6 +3,7 @@ import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { RolesGuard } from "../../common/guards/roles.guard";
+import { AgentRateLimitGuard } from "../../common/guards/agent-rate-limit.guard";
 import { AgentService } from "./agent.service";
 import { CreateAgentRunDto } from "./dto/agent.dto";
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
@@ -45,6 +46,7 @@ export class AgentController {
 
   @Post("runs")
   @Roles("OWNER", "ADMIN", "MEMBER")
+  @UseGuards(AgentRateLimitGuard)
   @ApiOperation({ summary: "Run the agent over the authenticated tenant context" })
   @ApiHeader({ name: "Idempotency-Key", required: true, description: "Unique client key used to prevent duplicate agent runs" })
   run(@Req() req: any, @Headers("idempotency-key") idempotencyKey: string | undefined, @Body() dto: CreateAgentRunDto) {

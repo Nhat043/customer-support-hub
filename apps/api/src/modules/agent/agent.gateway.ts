@@ -12,6 +12,7 @@ import type { Socket } from "socket.io";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { AgentService } from "./agent.service";
 import { CreateAgentRunDto } from "./dto/agent.dto";
+import { AgentRateLimitGuard } from "../../common/guards/agent-rate-limit.guard";
 
 type AgentSocketPayload = CreateAgentRunDto & {
   orgSlug?: string;
@@ -32,7 +33,8 @@ export class AgentGateway implements OnGatewayConnection {
     private readonly agentService: AgentService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly agentRateLimit: AgentRateLimitGuard
   ) {}
 
   handleConnection(socket: Socket) {
@@ -43,10 +45,14 @@ export class AgentGateway implements OnGatewayConnection {
   async run(@ConnectedSocket() socket: Socket, @MessageBody() payload: AgentSocketPayload) {
     try {
       const principal = await this.authenticate(socket, payload.orgSlug);
+      if (!["OWNER", "ADMIN", "MEMBER"].includes(principal.membershipRole)) {
+        throw new ForbiddenException("Your role cannot run the AI assistant");
+      }
       if (!payload.idempotencyKey?.trim()) throw new ForbiddenException("Idempotency-Key is required");
       if (typeof payload.message !== "string" || payload.message.trim().length < 1 || payload.message.length > 4000) {
         throw new ForbiddenException("A valid agent message is required");
       }
+      await this.agentRateLimit.enforce(principal.organizationId, principal.userId);
 
       return await this.agentService.run(
         principal.organizationId,

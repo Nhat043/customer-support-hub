@@ -21,6 +21,14 @@ type Invitation = {
 
 const roles: MembershipRole[] = ["ADMIN", "MEMBER", "VIEWER"];
 
+function roleClass(role: MembershipRole) {
+  return `workspace-role--${role.toLowerCase()}`;
+}
+
+function readableRole(role: MembershipRole) {
+  return role[0] + role.slice(1).toLowerCase();
+}
+
 export default function TeamPage() {
   const params = useParams<{ orgSlug: string }>();
   const orgSlug = params.orgSlug;
@@ -157,9 +165,9 @@ export default function TeamPage() {
           <p className="muted">Each person uses their own email and password. The selected role controls what they can do in this workspace.</p>
           <form className="grid" onSubmit={invite}>
             <input className="input" type="email" placeholder="teammate@company.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
-            <select className="select" value={inviteRole} onChange={(event) => setInviteRole(event.target.value as MembershipRole)}>
+            <select className={`select workspace-role-select ${roleClass(inviteRole)}`} value={inviteRole} onChange={(event) => setInviteRole(event.target.value as MembershipRole)}>
               {roles.filter((value) => isOwner || value !== "ADMIN").map((value) => (
-                <option key={value} value={value}>{value[0]}{value.slice(1).toLowerCase()}</option>
+                <option key={value} value={value}>{readableRole(value)}</option>
               ))}
             </select>
             <button className="btn primary" type="submit" disabled={loading}>
@@ -209,16 +217,16 @@ export default function TeamPage() {
                   <strong>{member.user.fullName}</strong>
                   <p className="muted">{member.user.email}</p>
                 </div>
-                {member.role === "OWNER" ? <span className="badge">Owner</span> : null}
+                {member.role === "OWNER" ? <span className={`badge workspace-role-badge ${roleClass(member.role)}`}>Owner</span> : null}
                 {member.role !== "OWNER" && isOwner ? (
                   <div className="row">
-                    <select className="select" value={member.role} onChange={(event) => void changeRole(member.id, event.target.value as MembershipRole)}>
-                      {roles.map((value) => <option key={value} value={value}>{value[0]}{value.slice(1).toLowerCase()}</option>)}
+                    <select className={`select workspace-role-select ${roleClass(member.role)}`} value={member.role} onChange={(event) => void changeRole(member.id, event.target.value as MembershipRole)}>
+                      {roles.map((value) => <option key={value} value={value}>{readableRole(value)}</option>)}
                     </select>
                     <button className="btn secondary" type="button" onClick={() => void removeMember(member.id)}>Remove</button>
                   </div>
                 ) : null}
-                {member.role !== "OWNER" && !isOwner ? <span className="badge">{member.role.toLowerCase()}</span> : null}
+                {member.role !== "OWNER" && !isOwner ? <span className={`badge workspace-role-badge ${roleClass(member.role)}`}>{readableRole(member.role)}</span> : null}
               </div>
             </article>
           ))}

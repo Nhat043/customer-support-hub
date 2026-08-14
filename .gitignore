@@ -19,6 +19,15 @@ apps/web/blob-report/
 .env.*
 !.env.example
 
+# Terraform state and environment-specific values
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
 # Logs
 *.log
 

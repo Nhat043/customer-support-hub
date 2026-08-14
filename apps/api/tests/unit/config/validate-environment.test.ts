@@ -96,3 +96,10 @@ test("semantic Gemini memory requires an API key and valid dimensions", () => {
     }),
   );
 });
+
+test("configuration rejects invalid agent rate limits", () => {
+  assert.throws(
+    () => validateEnvironment({ AGENT_RATE_LIMIT_USER_PER_MINUTE: "0", AGENT_RATE_LIMIT_ORGANIZATION_PER_MINUTE: "many" }),
+    /AGENT_RATE_LIMIT_USER_PER_MINUTE.*AGENT_RATE_LIMIT_ORGANIZATION_PER_MINUTE/
+  );
+});

@@ -19,10 +19,29 @@ type KnowledgeDocumentDetail = KnowledgeDocument & {
   chunks: Array<{ id: string; ordinal: number; content: string; createdAt: string }>;
 };
 
+function combineGuideSections(chunks: KnowledgeDocumentDetail["chunks"]) {
+  return [...chunks]
+    .sort((left, right) => left.ordinal - right.ordinal)
+    .reduce((guide, chunk) => {
+      const next = chunk.content.trim();
+      if (!guide) return next;
+
+      // Indexing uses a small overlap for search quality. Remove that overlap
+      // when presenting the guide so people read one continuous document.
+      const maxOverlap = Math.min(guide.length, next.length, 300);
+      for (let length = maxOverlap; length >= 24; length -= 1) {
+        if (guide.slice(-length) === next.slice(0, length)) {
+          return `${guide}${next.slice(length)}`;
+        }
+      }
+      return `${guide}\n\n${next}`;
+    }, "");
+}
+
 export default function KnowledgePage() {
   const params = useParams<{ orgSlug: string }>();
   const searchParams = useSearchParams();
-  const [orgSlug, setOrgSlug] = useState("demo");
+  const [orgSlug, setOrgSlug] = useState("");
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<KnowledgeDocumentDetail | null>(null);
   const [loadingDocument, setLoadingDocument] = useState(false);
@@ -36,16 +55,17 @@ export default function KnowledgePage() {
   const canManage = role === "OWNER" || role === "ADMIN";
 
   useEffect(() => {
-    setOrgSlug(params.orgSlug ?? "demo");
+    if (params.orgSlug) setOrgSlug(params.orgSlug);
   }, [params.orgSlug]);
 
   useEffect(() => {
+    if (!orgSlug) return;
     void loadDocuments();
   }, [orgSlug]);
 
   useEffect(() => {
     const documentId = searchParams.get("document");
-    if (!documentId || orgSlug === "demo") {
+    if (!documentId || !orgSlug) {
       setSelectedDocument(null);
       return;
     }
@@ -56,6 +76,7 @@ export default function KnowledgePage() {
     const session = getSession();
     if (!session) return;
     setLoading(true);
+    setError("");
     try {
       setDocuments(await apiFetch<KnowledgeDocument[]>(`/orgs/${orgSlug}/knowledge`, { accessToken: session.accessToken }));
     } catch (loadError) {
@@ -156,54 +177,55 @@ export default function KnowledgePage() {
   return (
     <section className="grid two">
       <section className="card grid">
-        <div>
-          <div className="badge">Workspace knowledge</div>
-          <h2>Ground answers in your support playbook</h2>
-          <p className="muted">Markdown is chunked, embedded, and scoped to the active support queue. The AI shows its matching sources with every answer.</p>
+          <div>
+          <div className="badge">Optional AI playbook</div>
+          <h2>Teach the AI your team&apos;s support rules</h2>
+          <p className="muted">Use this only for stable internal guidance, such as refund policy, delivery process, or team FAQ. The AI searches these guides before it answers and shows the source it used.</p>
         </div>
         {canManage ? (
           <form className="grid" onSubmit={upload}>
             <label className="grid">
-              <span>Markdown file</span>
+              <span>Support guide (.md)</span>
               <input className="input" type="file" accept=".md,text/markdown" onChange={selectFile} required />
+              <small className="muted">Examples: refund-policy.md, delivery-playbook.md, team-faq.md</small>
             </label>
             <label className="grid">
               <span>Document title</span>
               <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Support playbook" maxLength={160} />
             </label>
             <button className="btn primary" type="submit" disabled={!file || uploading}>
-              {uploading ? "Indexing knowledge..." : "Upload and index Markdown"}
+              {uploading ? "Preparing guide for AI..." : "Add guide to AI playbook"}
             </button>
           </form>
-        ) : <p className="muted">Only workspace owners and admins can upload or remove knowledge documents.</p>}
+        ) : <p className="muted">You can read this playbook. Workspace owners and admins can add, retry, or remove guides.</p>}
         {error ? <p className="error">{error}</p> : null}
       </section>
 
       <aside className="card grid">
-        <div className="badge">How citations work</div>
-        <h3>Tenant-safe retrieval</h3>
-        <p className="muted">The vector search always filters by your organization, active workspace, and the knowledge source type. Private copilot memory is never searched as workspace knowledge.</p>
-        <p className="muted">A failed index stays visible. An owner or admin can retry the existing document after the embedding service recovers, without uploading it again.</p>
+        <div className="badge">How it works</div>
+        <h3>Private to this workspace</h3>
+        <p className="muted">When an owner or admin adds a guide, the AI can find the relevant part when someone asks a support-policy question and cite the guide in its answer.</p>
+        <p className="muted">Search is always limited to this company and this support queue. Other companies and private chat memory are never included. If indexing fails, an owner or admin can retry the same document.</p>
       </aside>
 
       <section className="card grid" style={{ gridColumn: "1 / -1" }}>
         <div>
-          <div className="badge">Indexed documents</div>
-          <h2>Knowledge library</h2>
+          <div className="badge">Your team&apos;s AI playbook</div>
+          <h2>Support guides</h2>
         </div>
         {loading ? <p className="muted">Loading documents...</p> : null}
-        {!loading && documents.length === 0 ? <p className="muted">No Markdown documents have been indexed for this support queue yet.</p> : null}
+        {!loading && documents.length === 0 ? <p className="muted">No guides have been added. This is optional: use it when your team has policies or processes the AI should follow consistently.</p> : null}
         <div className="list">
           {documents.map((document) => (
             <article className="card" key={document.id}>
               <div className="row" style={{ justifyContent: "space-between", gap: 16 }}>
                 <div>
                   <strong>{document.title}</strong>
-                  <p className="muted">{document.fileName} · {document.chunkCount} chunks · {document.status.toLowerCase()}</p>
+                  <p className="muted">{document.fileName} · {document.status.toLowerCase()}</p>
                   <p className="muted">Uploaded by {document.uploadedBy.fullName} on {new Date(document.createdAt).toLocaleString()}</p>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
-                  <button className="btn secondary compact" type="button" onClick={() => void loadDocument(document.id)}>View source</button>
+                  <button className="btn secondary compact" type="button" onClick={() => void loadDocument(document.id)}>Open guide</button>
                   {canManage && document.status === "FAILED" ? <button className="btn primary compact" type="button" disabled={retryingDocumentId === document.id} onClick={() => void retry(document.id)}>{retryingDocumentId === document.id ? "Retrying..." : "Retry index"}</button> : null}
                   {canManage ? <button className="btn danger compact" type="button" onClick={() => void remove(document.id)}>Delete</button> : null}
                 </div>
@@ -220,18 +242,14 @@ export default function KnowledgePage() {
             <div>
               <div className="badge">Source document</div>
               <h2>{selectedDocument.title}</h2>
-              <p className="muted">{selectedDocument.fileName} · {selectedDocument.chunkCount} chunks · {selectedDocument.status.toLowerCase()}</p>
+              <p className="muted">{selectedDocument.fileName} · {selectedDocument.status.toLowerCase()}</p>
             </div>
             <button className="btn secondary compact" type="button" onClick={() => setSelectedDocument(null)}>Close source</button>
           </div>
-          <div className="list">
-            {selectedDocument.chunks.map((chunk) => (
-              <article className={`card${searchParams.get("chunk") === chunk.id ? " knowledge-chunk-highlight" : ""}`} id={`chunk-${chunk.id}`} key={chunk.id}>
-                <strong>Chunk {chunk.ordinal + 1}</strong>
-                <p className="knowledge-source-content">{chunk.content}</p>
-              </article>
-            ))}
-          </div>
+          <article className="card knowledge-guide-preview">
+            <strong>Guide contents</strong>
+            <p className="knowledge-source-content">{combineGuideSections(selectedDocument.chunks)}</p>
+          </article>
         </section>
       ) : null}
     </section>
