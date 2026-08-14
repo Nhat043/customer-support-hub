@@ -5,6 +5,8 @@ import { PrismaModule } from "../../infrastructure/prisma/prisma.module";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
+import { AgentRateLimitGuard } from "../../common/guards/agent-rate-limit.guard";
+import { RateLimitModule } from "../../infrastructure/rate-limit/rate-limit.module";
 import { AGENT_PROVIDER } from "./agent.provider";
 import { AgentController } from "./agent.controller";
 import { AgentService } from "./agent.service";
@@ -18,7 +20,7 @@ import { MemoryModule } from "../../infrastructure/memory/memory.module";
 import { KnowledgeModule } from "../knowledge/knowledge.module";
 
 @Module({
-  imports: [ConfigModule, PrismaModule, ObservabilityModule, MemoryModule, KnowledgeModule, JwtModule.register({})],
+  imports: [ConfigModule, PrismaModule, ObservabilityModule, MemoryModule, KnowledgeModule, RateLimitModule, JwtModule.register({})],
   controllers: [AgentController],
   providers: [
     AgentService,
@@ -30,6 +32,7 @@ import { KnowledgeModule } from "../knowledge/knowledge.module";
     JwtGuard,
     OrgGuard,
     RolesGuard,
+    AgentRateLimitGuard,
     {
       provide: AGENT_PROVIDER,
       inject: [ConfigService, MockAgentProvider, GeminiAgentProvider],

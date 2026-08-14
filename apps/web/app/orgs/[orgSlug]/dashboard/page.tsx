@@ -22,6 +22,14 @@ type WorkflowItem = {
 
 type Workspace = { id: string; slug: string; name: string };
 
+function readableStatus(value: string) {
+  return value.toLowerCase().split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
+function workflowStatusClass(status: string) {
+  return `workflow-status--${status.toLowerCase().replaceAll("_", "-")}`;
+}
+
 export default function OrgDashboardPage() {
   const router = useRouter();
   const params = useParams<{ orgSlug: string }>();
@@ -215,10 +223,13 @@ export default function OrgDashboardPage() {
             {items.map((item) => (
               <article key={item.id} className="request-row">
                 <div>
-                  <strong>{item.title}</strong>
+                  <Link href={`/orgs/${orgSlug}/workflow-items/${item.id}`}><strong>{item.title}</strong></Link>
                   <p>Priority: {item.priority.toLowerCase()}</p>
                 </div>
-                <span className="badge">{item.status.toLowerCase()}</span>
+                <div className="row">
+                  <span className={`badge workflow-status-badge ${workflowStatusClass(item.status)}`}>{readableStatus(item.status)}</span>
+                  <Link className="btn secondary" href={`/orgs/${orgSlug}/workflow-items/${item.id}`}>Open request</Link>
+                </div>
               </article>
             ))}
           </div>

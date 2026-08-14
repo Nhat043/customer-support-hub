@@ -89,8 +89,10 @@ export class WorkflowItemsService {
     actor: { userId: string; role: string },
   ) {
     const current = await this.getById(organizationId, id);
-    const changesOwner = Object.hasOwn(dto, "ownerId");
-    const changesDueAt = Object.hasOwn(dto, "dueAt");
+    // class-transformer creates optional DTO fields as undefined, so own-property
+    // checks would incorrectly treat a status-only update as an assignment update.
+    const changesOwner = dto.ownerId !== undefined;
+    const changesDueAt = dto.dueAt !== undefined;
     if (changesOwner && !["OWNER", "ADMIN"].includes(actor.role)) {
       throw new ForbiddenException("Only workspace owners and admins can assign customer requests");
     }

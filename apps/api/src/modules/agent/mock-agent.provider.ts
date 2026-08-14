@@ -9,6 +9,11 @@ import {
 export class MockAgentProvider implements AgentProvider {
   async complete(input: AgentProviderInput): Promise<AgentProviderDecision> {
     const message = input.message.trim();
+    if (/(?:upload|attach(?:ment)?|file|tải\s*lên|đính\s*kèm)/i.test(message)) {
+      return {
+        text: "To add a file, open the customer request, then use its Attachments section. Owner, Admin, and Member can upload PDF, JPG, PNG, WEBP, or text files up to 10 MB. I cannot select a file from your device for you."
+      };
+    }
     if (/(?:summary|overview|tổng quan|bao nhiêu).*(?:request|yêu cầu|support)?/i.test(message)) {
       return { text: "I will calculate the current support queue summary.", toolCall: { name: "get_support_queue_summary", arguments: {} } };
     }

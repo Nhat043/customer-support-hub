@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AgentDrawer } from "@/components/agent-drawer";
 import { apiFetch } from "@/lib/api";
@@ -11,12 +11,27 @@ type Notification = { id: string; title: string; body: string; readAt: string | 
 
 export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: React.ReactNode; orgSlug: string }>) {
   const router = useRouter();
+  const pathname = usePathname();
   const [session, setSession] = useState<StoredSession | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
   const role = session?.activeMembershipRole;
   const canManageTeam = role === "OWNER" || role === "ADMIN";
+  const roleLabel = role === "OWNER" ? "Workspace owner" : role ? `${role.charAt(0)}${role.slice(1).toLowerCase()}` : "Loading role";
+  const accountInitials = session?.user.fullName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((name) => name[0])
+    .join("")
+    .toUpperCase() ?? "?";
+
+  function navigationClass(path: string, matchNested = false) {
+    const isActive = matchNested ? pathname.startsWith(path) : pathname === path;
+    return `btn secondary${isActive ? " nav-link-active" : ""}`;
+  }
 
   useEffect(() => {
     setSession(getSession());
@@ -40,6 +55,7 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
       }
     } finally {
       clearSession();
+      setShowAccountMenu(false);
       router.push("/login");
     }
   }
@@ -56,21 +72,55 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
                 <small>Your company support workspace</small>
               </span>
             </Link>
-            <span className="app-role-label">
-              {role === "OWNER" ? "Workspace owner" : role ? `${role.charAt(0)}${role.slice(1).toLowerCase()}` : "Workspace"}
-            </span>
           </div>
-          <nav className="app-navigation" aria-label="Workspace navigation">
-            <Link className="btn secondary" href={`/orgs/${orgSlug}/dashboard`}>Overview</Link>
-            <Link className="btn secondary" href={`/orgs/${orgSlug}/workflow-items`}>Customer requests</Link>
-            <Link className="btn secondary" href={`/orgs/${orgSlug}/knowledge`}>Knowledge</Link>
-            {canManageTeam ? <Link className="btn secondary" href={`/orgs/${orgSlug}/team`}>Team and roles</Link> : null}
-            <button className="btn secondary" type="button" onClick={() => setShowNotifications((value) => !value)}>
-              Notifications{notifications.filter((item) => !item.readAt).length ? ` (${notifications.filter((item) => !item.readAt).length})` : ""}
-            </button>
-            {canManageTeam ? <Link className="btn secondary" href={`/orgs/${orgSlug}/settings`}>Settings</Link> : null}
-            <button className="btn secondary" type="button" onClick={() => void logout()}>Logout</button>
-          </nav>
+          <div className="app-header-actions">
+            <nav className="app-navigation" aria-label="Workspace navigation">
+              <Link className={navigationClass(`/orgs/${orgSlug}/dashboard`)} href={`/orgs/${orgSlug}/dashboard`}>Overview</Link>
+              <Link className={navigationClass(`/orgs/${orgSlug}/workflow-items`, true)} href={`/orgs/${orgSlug}/workflow-items`}>Customer requests</Link>
+              <Link className={navigationClass(`/orgs/${orgSlug}/knowledge`, true)} href={`/orgs/${orgSlug}/knowledge`}>Knowledge base</Link>
+              {canManageTeam ? <Link className={navigationClass(`/orgs/${orgSlug}/team`, true)} href={`/orgs/${orgSlug}/team`}>Team and roles</Link> : null}
+              <button className={`btn secondary${showNotifications ? " nav-link-active" : ""}`} type="button" onClick={() => {
+                setShowNotifications((value) => !value);
+                setShowAccountMenu(false);
+              }}>
+                Notifications{notifications.filter((item) => !item.readAt).length ? ` (${notifications.filter((item) => !item.readAt).length})` : ""}
+              </button>
+              {canManageTeam ? <Link className={navigationClass(`/orgs/${orgSlug}/settings`, true)} href={`/orgs/${orgSlug}/settings`}>Settings</Link> : null}
+            </nav>
+            <div className="app-account-menu">
+              <button
+                className="app-account-trigger"
+                type="button"
+                aria-expanded={showAccountMenu}
+                aria-haspopup="menu"
+                onClick={() => {
+                  setShowAccountMenu((value) => !value);
+                  setShowNotifications(false);
+                }}
+              >
+                <span className="app-role-label">{roleLabel}</span>
+                <span className="app-account-chevron" aria-hidden="true">⌄</span>
+              </button>
+              {showAccountMenu ? (
+                <section className="app-account-popover" role="menu" aria-label="Account menu">
+                  <div className="app-account-popover-profile">
+                    <span className="app-account-avatar" aria-hidden="true">{accountInitials}</span>
+                    <div>
+                      <strong>{session?.user.fullName ?? "Account"}</strong>
+                      <small>{session?.user.email ?? ""}</small>
+                      <span className="app-role-label">{roleLabel}</span>
+                    </div>
+                  </div>
+                  <Link className="app-account-menu-item" href="/forgot-password" onClick={() => setShowAccountMenu(false)}>
+                    Change password
+                  </Link>
+                  <button className="app-account-menu-item danger" type="button" onClick={() => void logout()}>
+                    Logout
+                  </button>
+                </section>
+              ) : null}
+            </div>
+          </div>
           {showNotifications ? <section className="card" style={{ position: "absolute", right: 24, top: 96, width: 340, zIndex: 2 }}><h3>Notifications</h3>{notifications.length ? notifications.map((item) => <article key={item.id} className="card"><strong>{item.title}</strong><p className="muted">{item.body}</p></article>) : <p className="muted">You are all caught up.</p>}</section> : null}
         </header>
         {children}

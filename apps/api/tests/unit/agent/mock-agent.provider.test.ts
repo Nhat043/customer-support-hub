@@ -56,3 +56,12 @@ test("mock provider routes operational questions through summary, filters, and n
     name: "navigate_to", arguments: { target: "requests" }
   });
 });
+
+test("mock provider explains that attachments are uploaded from the request detail UI", async () => {
+  const provider = new MockAgentProvider();
+  const decision = await provider.complete(input("How do I upload a file?"));
+
+  assert.equal(decision.toolCall, undefined);
+  assert.match(decision.text, /Attachments section/);
+  assert.match(decision.text, /10 MB/);
+});

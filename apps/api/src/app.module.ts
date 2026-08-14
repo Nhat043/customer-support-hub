@@ -16,6 +16,7 @@ import { RequestObservabilityMiddleware } from "./infrastructure/observability/r
 import { validateEnvironment } from "./config/validate-environment";
 import { KnowledgeModule } from "./modules/knowledge/knowledge.module";
 import { SecurityHeadersMiddleware } from "./common/security/security-headers.middleware";
+import { AttachmentsModule } from "./modules/attachments/attachments.module";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SecurityHeadersMiddleware } from "./common/security/security-headers.mi
     OrganizationsModule,
     WorkspacesModule,
     WorkflowItemsModule,
+    AttachmentsModule,
     CommentsModule,
     AgentModule,
     TeamModule,

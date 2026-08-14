@@ -42,6 +42,10 @@ services:
       GEMINI_USE_VERTEX_AI: ${GEMINI_USE_VERTEX_AI:-false}
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      LOCAL_UPLOAD_DIR: /app/uploads
+      GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
+      GCS_ATTACHMENT_BUCKET: ${GCS_ATTACHMENT_BUCKET:-}
       JWT_ACCESS_SECRET: replace-me-access-secret
       REFRESH_TOKEN_PEPPER: replace-me-refresh-token-pepper
       PASSWORD_RESET_TOKEN_PEPPER: ${PASSWORD_RESET_TOKEN_PEPPER:-}
@@ -67,6 +71,8 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "4000:4000"
+    volumes:
+      - attachment_data:/app/uploads
 
   web:
     build:
@@ -133,3 +139,4 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  attachment_data:

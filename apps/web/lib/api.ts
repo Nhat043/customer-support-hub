@@ -84,11 +84,12 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
       ...(csrfToken() ? { "x-csrf-token": csrfToken()! } : {}),
       ...(options.headers ?? {})
