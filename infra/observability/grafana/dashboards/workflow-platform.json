@@ -4,7 +4,7 @@
   "tags": ["customer-support-hub", "api", "agent"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "15s",
   "panels": [
     {
@@ -47,7 +47,7 @@
       "type": "timeseries",
       "title": "Agent Tool Calls",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [{ "expr": "sum(rate(workflow_platform_agent_tool_calls_total[5m])) by (tool_name)", "refId": "A" }],
+      "targets": [{ "expr": "sum(rate(workflow_platform_agent_tool_calls_total[5m])) by (tool_name, status)", "refId": "A" }],
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 }
     },
     {
@@ -81,6 +81,22 @@
       "datasource": { "type": "loki", "uid": "loki" },
       "targets": [{ "expr": "{compose_service=\"api\"}", "refId": "A" }],
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Rate-limit Rejections",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(increase(workflow_platform_rate_limit_hits_total[5m])) by (scope)", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 30 }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Failed Agent Tool Calls",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(increase(workflow_platform_agent_tool_calls_total{status=\"FAILED\"}[5m])) by (tool_name)", "refId": "A" }],
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 30 }
     }
   ]
 }

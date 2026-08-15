@@ -30,8 +30,14 @@ export class MetricsService {
   });
   private readonly agentToolCalls = new Counter({
     name: "workflow_platform_agent_tool_calls_total",
-    help: "Total agent tool calls",
-    labelNames: ["tool_name"],
+    help: "Total agent tool calls by final status",
+    labelNames: ["tool_name", "status"],
+    registers: [this.registry]
+  });
+  private readonly rateLimitHits = new Counter({
+    name: "workflow_platform_rate_limit_hits_total",
+    help: "Total requests rejected by a rate limit",
+    labelNames: ["scope"],
     registers: [this.registry]
   });
   private readonly rateLimitFallbacks = new Counter({
@@ -67,8 +73,12 @@ export class MetricsService {
     this.agentDuration.observe({ status, model }, durationSeconds);
   }
 
-  recordAgentToolCall(toolName: string) {
-    this.agentToolCalls.inc({ tool_name: toolName });
+  recordAgentToolCall(toolName: string, status: "SUCCEEDED" | "FAILED") {
+    this.agentToolCalls.inc({ tool_name: toolName, status });
+  }
+
+  recordRateLimitHit(scope: "auth" | "agent_user" | "agent_organization") {
+    this.rateLimitHits.inc({ scope });
   }
 
   recordRateLimitFallback(reason: "redis_unavailable" | "redis_command_failed") {

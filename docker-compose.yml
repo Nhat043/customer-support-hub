@@ -100,8 +100,18 @@ services:
       - prometheus_data:/prometheus
     depends_on:
       - api
+      - alertmanager
     ports:
       - "9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./infra/observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
 
   loki:
     image: grafana/loki:3.3.2

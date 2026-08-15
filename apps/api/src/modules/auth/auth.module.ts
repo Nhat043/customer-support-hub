@@ -8,9 +8,10 @@ import { AuthRateLimitGuard } from "../../common/guards/auth-rate-limit.guard";
 import { CsrfGuard } from "../../common/guards/csrf.guard";
 import { RateLimitModule } from "../../infrastructure/rate-limit/rate-limit.module";
 import { EmailModule } from "../../infrastructure/email/email.module";
+import { ObservabilityModule } from "../../infrastructure/observability/observability.module";
 
 @Module({
-  imports: [ConfigModule, PrismaModule, EmailModule, JwtModule.register({}), RateLimitModule],
+  imports: [ConfigModule, PrismaModule, EmailModule, ObservabilityModule, JwtModule.register({}), RateLimitModule],
   controllers: [AuthController],
   providers: [AuthService, AuthRateLimitGuard, CsrfGuard]
 })

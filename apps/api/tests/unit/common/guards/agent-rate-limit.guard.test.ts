@@ -10,6 +10,10 @@ function config(values: Record<string, string> = {}) {
   } as any;
 }
 
+function metrics(events: string[] = []) {
+  return { recordRateLimitHit: (scope: string) => events.push(scope) } as any;
+}
+
 function context(organizationId = "org-a", userId = "user-a") {
   return {
     switchToHttp: () => ({ getRequest: () => ({ organization: { id: organizationId }, user: { userId } }) })
@@ -17,7 +21,8 @@ function context(organizationId = "org-a", userId = "user-a") {
 }
 
 test("agent guard limits a user across REST calls", async () => {
-  const guard = new AgentRateLimitGuard(new InMemoryRateLimitStore(), config({ AGENT_RATE_LIMIT_USER_PER_MINUTE: "2" }));
+  const events: string[] = [];
+  const guard = new AgentRateLimitGuard(new InMemoryRateLimitStore(), config({ AGENT_RATE_LIMIT_USER_PER_MINUTE: "2" }), metrics(events));
 
   assert.equal(await guard.canActivate(context()), true);
   assert.equal(await guard.canActivate(context()), true);
@@ -27,12 +32,15 @@ test("agent guard limits a user across REST calls", async () => {
     assert.match(String(typeof response === "object" ? (response as any).message : error.message), /too many AI requests/);
     return true;
   });
+  assert.deepEqual(events, ["agent_user"]);
 });
 
 test("agent guard applies a shared organization budget across users", async () => {
+  const events: string[] = [];
   const guard = new AgentRateLimitGuard(
     new InMemoryRateLimitStore(),
-    config({ AGENT_RATE_LIMIT_USER_PER_MINUTE: "10", AGENT_RATE_LIMIT_ORGANIZATION_PER_MINUTE: "2" })
+    config({ AGENT_RATE_LIMIT_USER_PER_MINUTE: "10", AGENT_RATE_LIMIT_ORGANIZATION_PER_MINUTE: "2" }),
+    metrics(events)
   );
 
   assert.equal(await guard.canActivate(context("org-a", "user-a")), true);
@@ -42,5 +50,6 @@ test("agent guard applies a shared organization budget across users", async () =
     assert.match(String((error.getResponse() as any).message), /workspace has reached/);
     return true;
   });
+  assert.deepEqual(events, ["agent_organization"]);
   assert.equal(await guard.canActivate(context("org-b", "user-c")), true);
 });

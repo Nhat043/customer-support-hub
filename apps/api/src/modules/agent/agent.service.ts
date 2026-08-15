@@ -120,14 +120,19 @@ export class AgentService {
           name: decision.toolCall.name,
           arguments: decision.toolCall.arguments
         });
-        this.metrics.recordAgentToolCall(decision.toolCall.name);
         toolNames.push(decision.toolCall.name);
         const context: AgentToolContext = { organizationId, userId, membershipRole, workspaceId };
-        toolResult = await this.tools.execute(
-          decision.toolCall.name,
-          context,
-          decision.toolCall.arguments
-        );
+        try {
+          toolResult = await this.tools.execute(
+            decision.toolCall.name,
+            context,
+            decision.toolCall.arguments
+          );
+          this.metrics.recordAgentToolCall(decision.toolCall.name, "SUCCEEDED");
+        } catch (error) {
+          this.metrics.recordAgentToolCall(decision.toolCall.name, "FAILED");
+          throw error;
+        }
         uiAction = this.readUiAction(toolResult);
         await this.prisma.agentMessage.create({
           data: {
