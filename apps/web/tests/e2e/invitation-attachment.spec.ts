@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { createRequest, e2eSuffix, registerOwner } from "./helpers";
+import { createRequest, e2eSuffix, registerOwner, waitForWorkspaceSession } from "./helpers";
 
 test("invited member joins with the locked email and manages an attachment", async ({ browser, page }) => {
   const { organizationSlug, suffix } = await registerOwner(page);
   const memberEmail = `member-${suffix}@example.test`;
 
   await page.goto(`/orgs/${organizationSlug}/team`);
+  await waitForWorkspaceSession(page, "OWNER");
   await expect(page.getByRole("heading", { name: "Invite someone to help with customer requests" })).toBeVisible();
   await page.getByPlaceholder("teammate@company.com").fill(memberEmail);
   await page.locator("select.workspace-role-select").first().selectOption("MEMBER");
@@ -27,9 +28,10 @@ test("invited member joins with the locked email and manages an attachment", asy
   await memberPage.getByLabel("Create a password").fill("E2EMemberPassword123!");
   await memberPage.getByRole("button", { name: "Create account and join team" }).click();
   await expect(memberPage).toHaveURL(new RegExp(`/orgs/${organizationSlug}/dashboard$`));
+  await waitForWorkspaceSession(memberPage, "MEMBER");
 
   const title = `Member attachment ${e2eSuffix()}`;
-  await createRequest(memberPage, organizationSlug, title, "A member-owned request with a text attachment.");
+  await createRequest(memberPage, organizationSlug, title, "A member-owned request with a text attachment.", "MEMBER");
   await memberPage.getByRole("link", { name: title, exact: true }).click();
   await expect(memberPage).toHaveURL(/\/workflow-items\/[^/]+$/);
 
