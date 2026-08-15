@@ -46,6 +46,9 @@ services:
       LOCAL_UPLOAD_DIR: /app/uploads
       GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
       GCS_ATTACHMENT_BUCKET: ${GCS_ATTACHMENT_BUCKET:-}
+      # Local GCS tests use the developer's ADC file read-only. Deployed
+      # workloads use their attached service account instead.
+      GOOGLE_APPLICATION_CREDENTIALS: /var/run/secrets/google/application_default_credentials.json
       JWT_ACCESS_SECRET: replace-me-access-secret
       REFRESH_TOKEN_PEPPER: replace-me-refresh-token-pepper
       PASSWORD_RESET_TOKEN_PEPPER: ${PASSWORD_RESET_TOKEN_PEPPER:-}
@@ -73,6 +76,7 @@ services:
       - "4000:4000"
     volumes:
       - attachment_data:/app/uploads
+      - ${GCP_ADC_CREDENTIALS_FILE:-/dev/null}:/var/run/secrets/google/application_default_credentials.json:ro
 
   web:
     build:
