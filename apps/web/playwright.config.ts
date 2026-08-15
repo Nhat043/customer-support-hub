@@ -3,6 +3,11 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 45_000,
+  expect: {
+    // GitHub runners can take longer than the local machine to hydrate an App
+    // Router page after the API and web processes have just started.
+    timeout: 15_000,
+  },
   // The scenarios create isolated organizations but share local infrastructure.
   // A single worker keeps CI database and browser resource usage predictable.
   workers: 1,
