@@ -370,3 +370,21 @@ test("agent service passes workspace knowledge to the provider and returns sourc
   assert.deepEqual(receivedKnowledge, [citation]);
   assert.deepEqual(result.citations, [citation]);
 });
+
+test("agent service does not attach knowledge citations to a tool-backed request answer", async () => {
+  const citation = {
+    chunkId: "chunk-1",
+    documentId: "document-1",
+    title: "Delivery policy",
+    fileName: "delivery-policy.md",
+    excerpt: "Delivery policy excerpt.",
+    score: 0.91
+  };
+  const harness = createHarness({ knowledge: [citation] });
+
+  const result = await harness.service.run("org-1", "user-1", "session-1", "MEMBER", "tool-citation-key", {
+    message: "Create a request"
+  });
+
+  assert.deepEqual(result.citations, []);
+});

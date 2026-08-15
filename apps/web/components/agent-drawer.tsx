@@ -197,7 +197,6 @@ export function AgentDrawer({ orgSlug, onClose }: { orgSlug: string; onClose: ()
           <div>
             <span className="badge">AI assistant</span>
             <h2>Support copilot</h2>
-            <p className="muted">Uses approved tools, tenant-scoped data, and workspace knowledge.</p>
           </div>
           <div className="agent-drawer-actions">
             <button className="btn secondary compact" type="button" disabled={loading || loadingHistory || clearingConversation} onClick={() => setConfirmNewChat(true)}>New chat</button>

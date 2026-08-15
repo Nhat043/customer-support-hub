@@ -152,13 +152,16 @@ export class AgentService {
       const output = decision.toolCall
         ? "I stopped after the safe maximum of three tool steps. Please refine the request if you need another action."
         : decision.text;
+      // A tool-backed answer is grounded in live tenant data, not in the
+      // semantic playbook. Do not attach unrelated RAG citations to it.
+      const citations = toolNames.length === 0 ? knowledge : [];
       await this.prisma.agentMessage.create({
         data: {
           organizationId,
           workspaceId,
           agentRunId: run.id,
           role: "ASSISTANT",
-          content: { text: output, toolCall: decision.toolCall ?? null, citations: knowledge } as Prisma.InputJsonValue
+          content: { text: output, toolCall: decision.toolCall ?? null, citations } as Prisma.InputJsonValue
         }
       });
       await this.prisma.agentRun.update({
@@ -176,7 +179,7 @@ export class AgentService {
         metadata: { modelName, toolNames }
       });
       this.metrics.recordAgentRun("SUCCEEDED", modelName, (performance.now() - startedAt) / 1_000);
-      await hooks.onCompleted?.({ runId: run.id, output, uiAction: uiAction ?? null, citations: knowledge });
+      await hooks.onCompleted?.({ runId: run.id, output, uiAction: uiAction ?? null, citations });
       return {
         runId: run.id,
         modelName,
@@ -184,7 +187,7 @@ export class AgentService {
         toolCall: decision.toolCall ?? null,
         toolResult: toolResult ?? null,
         uiAction: uiAction ?? null,
-        citations: knowledge,
+        citations,
         memoryCount: memories.length
       };
     } catch (error) {
