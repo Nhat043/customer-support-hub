@@ -112,5 +112,8 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
     throw new ApiError(toSafeErrorMessage(response.status), response.status);
   }
 
-  return (await response.json()) as T;
+  // DELETE endpoints may complete successfully without returning JSON. Reading
+  // an empty body as JSON throws after the mutation has already succeeded.
+  const responseBody = await response.text();
+  return (responseBody ? JSON.parse(responseBody) : undefined) as T;
 }

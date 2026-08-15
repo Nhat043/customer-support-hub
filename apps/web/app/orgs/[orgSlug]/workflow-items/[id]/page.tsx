@@ -66,7 +66,7 @@ export default function WorkflowItemDetailPage() {
   const [savingRouting, setSavingRouting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [imagePreview, setImagePreview] = useState<{ fileName: string; url: string } | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ attachmentId: string; fileName: string; url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -191,7 +191,7 @@ export default function WorkflowItemDetailPage() {
     setError(null);
     try {
       const url = URL.createObjectURL(await fetchAttachmentBlob(attachment));
-      setImagePreview({ fileName: attachment.fileName, url });
+      setImagePreview({ attachmentId: attachment.id, fileName: attachment.fileName, url });
     } catch (previewError) {
       setError(previewError instanceof Error ? previewError.message : "Could not preview the attachment");
     }
@@ -222,6 +222,7 @@ export default function WorkflowItemDetailPage() {
         accessToken: session.accessToken
       });
       setItem((current) => current ? { ...current, attachments: current.attachments.filter(({ id }) => id !== attachment.id) } : current);
+      setImagePreview((current) => current?.attachmentId === attachment.id ? null : current);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Could not delete the attachment");
     }
