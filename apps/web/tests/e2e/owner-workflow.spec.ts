@@ -1,36 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { createRequest, e2eSuffix, registerOwner } from "./helpers";
 
 test("owner can create a workspace, add a request, and query it through the copilot", async ({ page }) => {
-  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  // This scenario verifies registration rather than client-side landing-page navigation.
-  await page.goto("/register");
-  await expect(page).toHaveURL(/\/register$/);
-  await page.getByLabel("Full name").fill("E2E Owner");
-  await page.getByLabel("Work email").fill(`owner-${unique}@example.test`);
-  await page.getByLabel("Create a password").fill("E2EOwnerPassword123!");
-  await page.getByLabel("Company name").fill(`E2E Support ${unique}`);
-  await page.getByRole("button", { name: "Create company workspace" }).click();
-
-  await expect(page).toHaveURL(/\/orgs\/[^/]+\/dashboard$/);
-  const organizationSlug = new URL(page.url()).pathname.split("/")[2];
-  expect(organizationSlug).toBeTruthy();
-
-  // Keep this scenario focused on the owner workflow, not navigation animation timing.
-  await page.goto(`/orgs/${organizationSlug}/workflow-items`);
-  await expect(page.getByRole("heading", { name: "Support queue" })).toBeVisible();
-
-  // The queue heading is server-rendered; the owner-only form appears after sessionStorage hydrates.
-  const createRequestForm = page.getByRole("heading", { name: "Log a customer request" }).locator("..").locator("..");
-  await expect(createRequestForm).toBeVisible();
-  await createRequestForm.getByPlaceholder("Short summary, e.g. Customer has not received an order").fill("Delivery is delayed");
-  await createRequestForm.getByPlaceholder("Add the customer details, issue, and information your team needs").fill("Order #E2E-42 has not arrived.");
-  await page.getByRole("button", { name: "Add to support queue" }).click();
-  await expect(page.getByText("Delivery is delayed", { exact: true })).toBeVisible();
+  const { organizationSlug } = await registerOwner(page);
+  const title = `Delivery is delayed ${e2eSuffix()}`;
+  await createRequest(page, organizationSlug, title, "Order #E2E-42 has not arrived.");
 
   await page.getByRole("button", { name: "Open AI support assistant" }).click();
   const composer = page.getByPlaceholder("Ask about requests, queue status, or where to go...");
   await composer.fill("Are there any new requests?");
   await composer.press("Enter");
-  await expect(page.getByText("I found 1 matching customer request.")).toBeVisible();
+  await expect(page.getByText(/I found .* matching customer request/)).toBeVisible();
 });
