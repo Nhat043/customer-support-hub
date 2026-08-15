@@ -7,8 +7,9 @@ import { RequestObservabilityMiddleware } from "../../../../src/infrastructure/o
 test("metrics service exposes HTTP, agent, and rate-limit resilience metrics", async () => {
   const metrics = new MetricsService();
   metrics.recordHttpRequest({ method: "GET", route: "/api/health", statusCode: 200, durationSeconds: 0.01 });
-  metrics.recordAgentToolCall("list_workflow_items");
+  metrics.recordAgentToolCall("list_workflow_items", "SUCCEEDED");
   metrics.recordAgentRun("SUCCEEDED", "mock", 0.02);
+  metrics.recordRateLimitHit("agent_user");
   metrics.recordRateLimitFallback("redis_unavailable");
   metrics.setRateLimitStoreAvailability(false);
   metrics.recordNotificationDelivery("DELIVERED", "request.assigned");
@@ -18,6 +19,7 @@ test("metrics service exposes HTTP, agent, and rate-limit resilience metrics", a
   assert.match(output, /workflow_platform_agent_tool_calls_total/);
   assert.match(output, /workflow_platform_agent_runs_total/);
   assert.match(output, /workflow_platform_rate_limit_fallback_total/);
+  assert.match(output, /workflow_platform_rate_limit_hits_total/);
   assert.match(output, /workflow_platform_rate_limit_redis_available 0/);
   assert.match(output, /workflow_platform_notification_deliveries_total/);
   assert.match(metrics.contentType(), /text\/plain/);

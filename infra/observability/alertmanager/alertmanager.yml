@@ -1,0 +1,14 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: local-observability
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+# Local development intentionally has no external receiver. Alerts remain
+# inspectable at http://localhost:9093 without leaking notification secrets.
+receivers:
+  - name: local-observability

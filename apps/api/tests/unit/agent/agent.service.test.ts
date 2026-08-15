@@ -13,6 +13,7 @@ function createHarness(options: {
   memories?: Array<Record<string, unknown>>;
   knowledge?: Array<Record<string, unknown>>;
   runs?: Array<Record<string, unknown>>;
+  toolError?: Error;
 } = {}) {
   const updates: Array<Record<string, unknown>> = [];
   const createdRuns: Array<Record<string, unknown>> = [];
@@ -59,13 +60,16 @@ function createHarness(options: {
     }
   } as any;
   const tools = {
-    execute: async () => ({ item: { id: "item-1" } }),
+    execute: async () => {
+      if (options.toolError) throw options.toolError;
+      return { item: { id: "item-1" } };
+    },
     listDefinitions: () => []
   } as unknown as AgentToolsService;
   const config = new ConfigService({ AI_PROVIDER: "mock", AI_MODEL: "test-model" });
   const metrics = {
     recordAgentRun: (status: string) => metricEvents.push(`run:${status}`),
-    recordAgentToolCall: (toolName: string) => metricEvents.push(`tool:${toolName}`)
+    recordAgentToolCall: (toolName: string, status: string) => metricEvents.push(`tool:${toolName}:${status}`)
   } as any;
   const memory = {
     retrieve: async () => options.memories ?? [],
@@ -132,7 +136,7 @@ test("agent service persists a successful function call and emits lifecycle hook
   assert.equal(createdRuns[0]?.idempotencyKey, "new-key");
   assert.equal(updates[0]?.status, "SUCCEEDED");
   assert.deepEqual(hookEvents, ["started:run-1", "called:create_workflow_item", "result:create_workflow_item", "completed:run-1"]);
-  assert.deepEqual(metricEvents, ["tool:create_workflow_item", "run:SUCCEEDED"]);
+  assert.deepEqual(metricEvents, ["tool:create_workflow_item:SUCCEEDED", "run:SUCCEEDED"]);
   assert.deepEqual(memoryEvents, ["remember"]);
 });
 
@@ -169,7 +173,7 @@ test("agent service feeds a tool result back to the provider for a natural final
 
   assert.equal(result.output, "There are 2 new requests and 1 overdue request.");
   assert.deepEqual(calls, ["get_support_queue_summary:item"]);
-  assert.deepEqual(metricEvents, ["tool:get_support_queue_summary", "run:SUCCEEDED"]);
+  assert.deepEqual(metricEvents, ["tool:get_support_queue_summary:SUCCEEDED", "run:SUCCEEDED"]);
 });
 
 test("agent service marks the run failed and emits failure hook", async () => {
@@ -190,6 +194,20 @@ test("agent service marks the run failed and emits failure hook", async () => {
   assert.equal(updates[0]?.status, "FAILED");
   assert.deepEqual(hookEvents, ["run-1:provider unavailable"]);
   assert.deepEqual(metricEvents, ["run:FAILED"]);
+});
+
+test("agent service records a failed tool call before failing the run", async () => {
+  const { service, metricEvents, updates } = createHarness({
+    toolError: new Error("workflow tool unavailable")
+  });
+
+  await assert.rejects(
+    service.run("org-1", "user-1", "session-1", "MEMBER", "tool-failed-key", { message: "create a request" }),
+    /workflow tool unavailable/
+  );
+
+  assert.equal(updates[0]?.status, "FAILED");
+  assert.deepEqual(metricEvents, ["tool:create_workflow_item:FAILED", "run:FAILED"]);
 });
 
 test("agent service rejects a concurrent replay", async () => {

@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { RATE_LIMIT_STORE, type RateLimitStore } from "../rate-limit/rate-limit.store";
+import { MetricsService } from "../../infrastructure/observability/metrics.service";
 
 @Injectable()
 export class AgentRateLimitGuard implements CanActivate {
@@ -17,7 +18,8 @@ export class AgentRateLimitGuard implements CanActivate {
 
   constructor(
     @Inject(RATE_LIMIT_STORE) private readonly store: RateLimitStore,
-    config: ConfigService
+    config: ConfigService,
+    private readonly metrics: MetricsService
   ) {
     this.userLimit = Number(config.get<string>("AGENT_RATE_LIMIT_USER_PER_MINUTE", "10"));
     this.organizationLimit = Number(config.get<string>("AGENT_RATE_LIMIT_ORGANIZATION_PER_MINUTE", "60"));
@@ -33,11 +35,13 @@ export class AgentRateLimitGuard implements CanActivate {
   async enforce(organizationId: string, userId: string): Promise<void> {
     const userResult = await this.store.increment(`agent:user:${organizationId}:${userId}`, this.windowMs);
     if (userResult.count > this.userLimit) {
+      this.metrics.recordRateLimitHit("agent_user");
       throw this.limitExceeded("You have sent too many AI requests", userResult.resetAt);
     }
 
     const organizationResult = await this.store.increment(`agent:organization:${organizationId}`, this.windowMs);
     if (organizationResult.count > this.organizationLimit) {
+      this.metrics.recordRateLimitHit("agent_organization");
       throw this.limitExceeded("This workspace has reached its AI request limit", organizationResult.resetAt);
     }
   }
