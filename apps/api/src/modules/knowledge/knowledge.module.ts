@@ -6,12 +6,13 @@ import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
 import { KnowledgeController } from "./knowledge.controller";
+import { KnowledgeDocumentExtractor } from "./knowledge-document-extractor";
 import { WorkspaceKnowledgeService } from "./knowledge.service";
 
 @Module({
   imports: [PrismaModule, MemoryModule, JwtModule.register({})],
   controllers: [KnowledgeController],
-  providers: [WorkspaceKnowledgeService, JwtGuard, OrgGuard, RolesGuard],
+  providers: [WorkspaceKnowledgeService, KnowledgeDocumentExtractor, JwtGuard, OrgGuard, RolesGuard],
   exports: [WorkspaceKnowledgeService]
 })
 export class KnowledgeModule {}
