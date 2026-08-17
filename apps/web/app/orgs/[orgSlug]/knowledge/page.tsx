@@ -108,13 +108,18 @@ export default function KnowledgePage() {
       setFile(null);
       return;
     }
-    if (!selected.name.toLowerCase().endsWith(".md")) {
+    if (!/\.(md|pdf|docx)$/i.test(selected.name)) {
       setFile(null);
-      setError("Choose a Markdown (.md) file.");
+      setError("Choose a Markdown (.md), PDF (.pdf), or Word (.docx) guide.");
+      return;
+    }
+    if (selected.size > 10 * 1024 * 1024) {
+      setFile(null);
+      setError("Knowledge guides must be 10 MB or smaller.");
       return;
     }
     setFile(selected);
-    setTitle(selected.name.replace(/\.md$/i, "").replace(/[-_]+/g, " "));
+    setTitle(selected.name.replace(/\.(md|pdf|docx)$/i, "").replace(/[-_]+/g, " "));
   }
 
   async function upload(event: FormEvent<HTMLFormElement>) {
@@ -124,11 +129,13 @@ export default function KnowledgePage() {
     setUploading(true);
     setError("");
     try {
-      const content = await file.text();
+      const body = new FormData();
+      body.append("file", file);
+      if (title.trim()) body.append("title", title.trim());
       await apiFetch(`/orgs/${orgSlug}/knowledge`, {
         method: "POST",
         accessToken: session.accessToken,
-        body: JSON.stringify({ fileName: file.name, title: title.trim() || undefined, content })
+        body
       });
       setFile(null);
       setTitle("");
@@ -185,16 +192,16 @@ export default function KnowledgePage() {
         {canManage ? (
           <form className="grid" onSubmit={upload}>
             <label className="grid">
-              <span>Support guide (.md)</span>
-              <input className="input" type="file" accept=".md,text/markdown" onChange={selectFile} required />
-              <small className="muted">Examples: refund-policy.md, delivery-playbook.md, team-faq.md</small>
+              <span>Support guide (.md, .pdf, or .docx)</span>
+              <input className="input" type="file" accept=".md,.pdf,.docx,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={selectFile} required />
+              <small className="muted">Use text-based documents up to 10 MB. Scanned PDFs need OCR before upload.</small>
             </label>
             <label className="grid">
               <span>Document title</span>
               <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Support playbook" maxLength={160} />
             </label>
             <button className="btn primary" type="submit" disabled={!file || uploading}>
-              {uploading ? "Preparing guide for AI..." : "Add guide to AI playbook"}
+              {uploading ? "Extracting and indexing guide..." : "Add guide to AI playbook"}
             </button>
           </form>
         ) : <p className="muted">You can read this playbook. Workspace owners and admins can add, retry, or remove guides.</p>}
@@ -204,7 +211,7 @@ export default function KnowledgePage() {
       <aside className="card grid">
         <div className="badge">How it works</div>
         <h3>Private to this workspace</h3>
-        <p className="muted">When an owner or admin adds a guide, the AI can find the relevant part when someone asks a support-policy question and cite the guide in its answer.</p>
+        <p className="muted">When an owner or admin adds a Markdown, PDF, or Word guide, the app extracts its text, divides it into searchable sections, and lets the AI cite the relevant guide in its answer.</p>
         <p className="muted">Search is always limited to this company and this support queue. Other companies and private chat memory are never included. If indexing fails, an owner or admin can retry the same document.</p>
       </aside>
 

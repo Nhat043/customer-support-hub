@@ -3,7 +3,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { EMBEDDING_PROVIDER, EmbeddingProvider } from "../../infrastructure/memory/embedding.provider";
 import { VECTOR_STORE, VectorStore } from "../../infrastructure/memory/vector-store";
-import { UploadKnowledgeDocumentDto } from "./dto/knowledge.dto";
 
 const MAX_CHUNKS_PER_DOCUMENT = 160;
 const CHUNK_SIZE = 1_200;
@@ -16,6 +15,12 @@ export type KnowledgeCitation = {
   fileName: string;
   excerpt: string;
   score: number;
+};
+
+export type IndexKnowledgeDocumentInput = {
+  fileName: string;
+  title?: string;
+  content: string;
 };
 
 @Injectable()
@@ -46,13 +51,13 @@ export class WorkspaceKnowledgeService {
     });
   }
 
-  async upload(organizationId: string, workspaceId: string | undefined, uploadedById: string, dto: UploadKnowledgeDocumentDto) {
+  async upload(organizationId: string, workspaceId: string | undefined, uploadedById: string, dto: IndexKnowledgeDocumentInput) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
-    const content = normalizeMarkdown(dto.content);
-    if (!content) throw new BadRequestException("Markdown content cannot be blank");
+    const content = normalizeText(dto.content);
+    if (!content) throw new BadRequestException("Knowledge document content cannot be blank");
     const chunks = chunkMarkdown(content);
     if (chunks.length > MAX_CHUNKS_PER_DOCUMENT) {
-      throw new ConflictException(`Markdown exceeds the ${MAX_CHUNKS_PER_DOCUMENT}-chunk knowledge limit`);
+      throw new ConflictException(`Knowledge document exceeds the ${MAX_CHUNKS_PER_DOCUMENT}-chunk limit`);
     }
     const contentHash = createHash("sha256").update(content).digest("hex");
     const duplicate = await this.prisma.knowledgeDocument.findFirst({
@@ -234,7 +239,7 @@ export class WorkspaceKnowledgeService {
 }
 
 export function chunkMarkdown(value: string, size = CHUNK_SIZE, overlap = CHUNK_OVERLAP) {
-  const normalized = normalizeMarkdown(value);
+  const normalized = normalizeText(value);
   const chunks: string[] = [];
   let start = 0;
 
@@ -255,12 +260,12 @@ export function chunkMarkdown(value: string, size = CHUNK_SIZE, overlap = CHUNK_
   return chunks;
 }
 
-function normalizeMarkdown(value: string) {
+function normalizeText(value: string) {
   return value.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
 }
 
 function titleFromFileName(fileName: string) {
-  return fileName.trim().replace(/\.md$/i, "").replace(/[-_]+/g, " ").trim() || "Workspace knowledge";
+  return fileName.trim().replace(/\.(md|pdf|docx)$/i, "").replace(/[-_]+/g, " ").trim() || "Workspace knowledge";
 }
 
 function excerpt(value: string) {

@@ -198,9 +198,9 @@ Conversation history remains in PostgreSQL per organization, user, and workspace
 
 ## Workspace Knowledge RAG
 
-Owners and admins can open **Knowledge** in a workspace and upload UTF-8 Markdown (`.md`) documents. The API stores document metadata and chunks in PostgreSQL, embeds each chunk, and indexes it in the configured vector store. It rejects duplicate document content within the same organization/workspace and retains a failed index record so it can be retried without uploading again. Citations in the copilot link directly to the document and highlighted source chunk.
+Owners and admins can open **Knowledge** in a workspace and upload Markdown (`.md`), text-based PDF (`.pdf`), or Word (`.docx`) guides up to 10 MB. The API extracts text server-side, rejects empty, malformed, unsupported, oversized, and scanned-without-OCR documents, then stores document metadata and chunks in PostgreSQL, embeds each chunk, and indexes it in the configured vector store. It rejects duplicate document content within the same organization/workspace and retains a failed index record so it can be retried without uploading again. Citations in the copilot link directly to the document and highlighted source chunk.
 
-At question time, the copilot retrieves only vectors with the current organization ID, active workspace ID, and `sourceType=knowledge`. Private agent memories use a different user-scoped filter and are never returned as workspace knowledge. Gemini receives the matching excerpts with source names, and the drawer renders source cards from the citations returned by the API. PDF/DOCX parsing is intentionally out of scope for this first Markdown-only ingestion path.
+At question time, the copilot retrieves only vectors with the current organization ID, active workspace ID, and `sourceType=knowledge`. Private agent memories use a different user-scoped filter and are never returned as workspace knowledge. Gemini receives the matching excerpts with source names, and the drawer renders source cards from the citations returned by the API.
 
 ## Deployment Safety
 
