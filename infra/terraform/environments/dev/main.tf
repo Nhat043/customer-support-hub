@@ -12,6 +12,7 @@ data "google_project" "current" {
 resource "google_project_service" "cloud_run_dependencies" {
   for_each = toset([
     "artifactregistry.googleapis.com",
+    "cloudbuild.googleapis.com",
     "run.googleapis.com",
     "secretmanager.googleapis.com",
   ])

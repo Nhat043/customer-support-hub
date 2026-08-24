@@ -1,0 +1,4 @@
+# Cloud Build source uploads must never include local credentials or state.
+.gcloudignore
+.git
+#!include:.gitignore

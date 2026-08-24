@@ -1,0 +1,14 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=/api
+      - -f
+      - apps/web/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/customer-support-hub/web:${_TAG}
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/customer-support-hub/web:${_TAG}

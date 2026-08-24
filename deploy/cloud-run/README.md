@@ -124,6 +124,19 @@ docker push ${REGISTRY}/api:${TAG}
 docker push ${REGISTRY}/web:${TAG}
 ```
 
+If Docker Desktop is unavailable in the local WSL distribution, build remotely
+with Cloud Build instead. The build configurations are versioned under
+`deploy/cloud-run/cloudbuild`:
+
+```bash
+export REGION=asia-southeast1
+export TAG=v1
+
+gcloud builds submit --config deploy/cloud-run/cloudbuild/gateway.yaml --substitutions=_REGION=${REGION},_TAG=${TAG} .
+gcloud builds submit --config deploy/cloud-run/cloudbuild/api.yaml --substitutions=_REGION=${REGION},_TAG=${TAG} .
+gcloud builds submit --config deploy/cloud-run/cloudbuild/web.yaml --substitutions=_REGION=${REGION},_TAG=${TAG} .
+```
+
 ## Phase 4: create Cloud Run service
 
 Update the ignored `terraform.tfvars`:
