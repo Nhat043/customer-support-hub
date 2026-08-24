@@ -17,6 +17,7 @@ import { validateEnvironment } from "./config/validate-environment";
 import { KnowledgeModule } from "./modules/knowledge/knowledge.module";
 import { SecurityHeadersMiddleware } from "./common/security/security-headers.middleware";
 import { AttachmentsModule } from "./modules/attachments/attachments.module";
+import { RealtimeModule } from "./infrastructure/realtime/realtime.module";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AttachmentsModule } from "./modules/attachments/attachments.module";
     }),
     JwtModule.register({}),
     PrismaModule,
+    RealtimeModule,
     ObservabilityModule,
     AuthModule,
     OrganizationsModule,

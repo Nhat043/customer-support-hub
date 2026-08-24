@@ -46,6 +46,7 @@ export function WorkflowItemsContent({ orgSlug, filters }: { orgSlug: string; fi
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const canEdit = Boolean(session && session.activeMembershipRole !== "VIEWER");
   const visibleItems = items.filter((item) =>
     (!filters.status || item.status === filters.status) &&
@@ -58,9 +59,15 @@ export function WorkflowItemsContent({ orgSlug, filters }: { orgSlug: string; fi
   }, []);
 
   useEffect(() => {
+    const refreshWorkspace = () => setWorkspaceRevision((value) => value + 1);
+    window.addEventListener("workspace-data-changed", refreshWorkspace);
+    return () => window.removeEventListener("workspace-data-changed", refreshWorkspace);
+  }, []);
+
+  useEffect(() => {
     if (!session) return;
     void loadItems(session.accessToken);
-  }, [orgSlug, session]);
+  }, [orgSlug, session, workspaceRevision]);
 
   async function loadItems(accessToken: string) {
     try {

@@ -1,7 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { WorkflowItemStatus, WorkflowPriority } from "../../../node_modules/.prisma/client";
 import type { AgentUiAction } from "./agent.provider";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { notificationRecipients } from "../notifications/notification-recipients";
+import { WorkspaceRealtimeGateway } from "../../infrastructure/realtime/workspace-realtime.gateway";
 
 export type AgentToolContext = {
   organizationId: string;
@@ -33,7 +35,10 @@ const workflowPriorities = new Set<string>(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 export class AgentToolsService {
   private readonly tools: Map<string, RegisteredTool>;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly realtime?: WorkspaceRealtimeGateway
+  ) {
     this.tools = new Map([
       ["list_workflow_items", {
         name: "list_workflow_items",
@@ -252,6 +257,7 @@ export class AgentToolsService {
       });
       return created;
     });
+    this.realtime?.publish({ organizationId: context.organizationId, workspaceId: item.workspaceId, workflowItemId: item.id, entity: "workflow_item", action: "created" });
     return { item };
   }
 
@@ -268,14 +274,14 @@ export class AgentToolsService {
         organizationId: context.organizationId,
         ...(context.workspaceId ? { workspaceId: context.workspaceId } : {})
       },
-      select: { id: true, workspaceId: true, title: true }
+      select: { id: true, workspaceId: true, title: true, status: true, ownerId: true, createdById: true }
     });
     if (!current) throw new NotFoundException("Workflow item not found");
     const item = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.workflowItem.update({
         where: { id: current.id },
         data: { status: status as WorkflowItemStatus, closedAt: status === "CLOSED" ? new Date() : null },
-        select: { id: true, title: true, status: true, workspaceId: true }
+        select: { id: true, title: true, status: true, workspaceId: true, updatedAt: true }
       });
       await tx.workflowEvent.create({
         data: {
@@ -286,8 +292,27 @@ export class AgentToolsService {
           payload: { status, source: "agent" }
         }
       });
+      const recipients = notificationRecipients(context.userId, current.ownerId, current.createdById);
+      if (current.status !== status && recipients.length) {
+        await tx.outboxEvent.create({
+          data: {
+            organizationId: context.organizationId,
+            type: "request.status_changed",
+            dedupeKey: `request-status-changed:${current.id}:${updated.updatedAt.toISOString()}`,
+            payload: {
+              workflowItemId: current.id,
+              recipientIds: recipients,
+              title: updated.title,
+              notificationType: "REQUEST_STATUS_CHANGED",
+              notificationTitle: `Request status changed to ${readableStatus(status)}`,
+              notificationBody: updated.title
+            }
+          }
+        });
+      }
       return updated;
     });
+    this.realtime?.publish({ organizationId: context.organizationId, workspaceId: item.workspaceId, workflowItemId: item.id, entity: "workflow_item", action: "updated" });
     return { item };
   }
 
@@ -304,7 +329,7 @@ export class AgentToolsService {
         organizationId: context.organizationId,
         ...(context.workspaceId ? { workspaceId: context.workspaceId } : {})
       },
-      select: { id: true, workspaceId: true }
+      select: { id: true, workspaceId: true, title: true, ownerId: true, createdById: true }
     });
     if (!item) throw new NotFoundException("Workflow item not found");
     const comment = await this.prisma.$transaction(async (tx) => {
@@ -328,8 +353,31 @@ export class AgentToolsService {
           payload: { commentId: created.id, source: "agent" }
         }
       });
+      const recipients = notificationRecipients(context.userId, item.ownerId, item.createdById);
+      if (recipients.length) {
+        await tx.outboxEvent.create({
+          data: {
+            organizationId: context.organizationId,
+            type: "request.comment_added",
+            dedupeKey: `request-comment-added:${created.id}`,
+            payload: {
+              workflowItemId: item.id,
+              recipientIds: recipients,
+              title: item.title,
+              notificationType: "COMMENT_ADDED",
+              notificationTitle: "New comment on customer request",
+              notificationBody: "The support copilot added a comment."
+            }
+          }
+        });
+      }
       return created;
     });
+    this.realtime?.publish({ organizationId: context.organizationId, workspaceId: item.workspaceId, workflowItemId: item.id, entity: "comment", action: "created" });
     return { comment };
   }
+}
+
+function readableStatus(status: string) {
+  return status.toLowerCase().split("_").map((part) => `${part[0]!.toUpperCase()}${part.slice(1)}`).join(" ");
 }

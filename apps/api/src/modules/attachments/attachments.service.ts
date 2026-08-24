@@ -1,7 +1,8 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { OBJECT_STORAGE, type ObjectStorage } from "../../infrastructure/storage/object-storage";
+import { WorkspaceRealtimeGateway } from "../../infrastructure/realtime/workspace-realtime.gateway";
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
@@ -23,7 +24,8 @@ type UploadedFile = {
 export class AttachmentsService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(OBJECT_STORAGE) private readonly objectStorage: ObjectStorage
+    @Inject(OBJECT_STORAGE) private readonly objectStorage: ObjectStorage,
+    @Optional() private readonly realtime?: WorkspaceRealtimeGateway
   ) {}
 
   async upload(input: {
@@ -58,7 +60,7 @@ export class AttachmentsService {
     });
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const attachment = await this.prisma.$transaction(async (tx) => {
         const attachment = await tx.attachment.create({
           data: {
             organizationId: item.organizationId,
@@ -89,6 +91,8 @@ export class AttachmentsService {
         });
         return attachment;
       });
+      this.realtime?.publish({ organizationId: item.organizationId, workspaceId: item.workspaceId, workflowItemId: item.id, entity: "attachment", action: "created" });
+      return attachment;
     } catch (error) {
       await this.objectStorage.delete(storageKey);
       throw error;
@@ -137,6 +141,7 @@ export class AttachmentsService {
         }
       });
     });
+    this.realtime?.publish({ organizationId: item.organizationId, workspaceId: item.workspaceId, workflowItemId: item.id, entity: "attachment", action: "deleted" });
   }
 
   private async findWorkflowItem(organizationId: string, workflowItemId: string) {

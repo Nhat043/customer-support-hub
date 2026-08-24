@@ -28,4 +28,13 @@ export class NotificationsController {
     });
     return { ok: true, updated: updated.count === 1 };
   }
+
+  @Patch("read")
+  async markAllRead(@Req() req: any) {
+    const updated = await this.prisma.notification.updateMany({
+      where: { organizationId: req.organization.id, userId: req.user.userId, readAt: null },
+      data: { readAt: new Date() }
+    });
+    return { ok: true, updated: updated.count };
+  }
 }

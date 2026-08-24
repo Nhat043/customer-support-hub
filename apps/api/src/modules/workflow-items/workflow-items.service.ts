@@ -1,12 +1,17 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { CreateWorkflowItemDto, UpdateWorkflowItemDto } from "./dto/workflow-item.dto";
+import { notificationRecipients } from "../notifications/notification-recipients";
+import { WorkspaceRealtimeGateway } from "../../infrastructure/realtime/workspace-realtime.gateway";
 
 const userSummary = { id: true, fullName: true, email: true } as const;
 
 @Injectable()
 export class WorkflowItemsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly realtime?: WorkspaceRealtimeGateway
+  ) {}
 
   async list(organizationId: string, workspaceId?: string | null) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
@@ -32,7 +37,7 @@ export class WorkflowItemsService {
     workspaceId?: string | null
   ) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
-    return this.prisma.$transaction(async (tx) => {
+    const item = await this.prisma.$transaction(async (tx) => {
       const item = await tx.workflowItem.create({
         data: {
           organizationId,
@@ -57,6 +62,8 @@ export class WorkflowItemsService {
 
       return item;
     });
+    this.realtime?.publish({ organizationId, workspaceId: resolvedWorkspaceId, workflowItemId: item.id, entity: "workflow_item", action: "created" });
+    return item;
   }
 
   async getById(organizationId: string, id: string) {
@@ -93,6 +100,7 @@ export class WorkflowItemsService {
     // checks would incorrectly treat a status-only update as an assignment update.
     const changesOwner = dto.ownerId !== undefined;
     const changesDueAt = dto.dueAt !== undefined;
+    const changesStatus = dto.status !== undefined && dto.status !== current.status;
     if (changesOwner && !["OWNER", "ADMIN"].includes(actor.role)) {
       throw new ForbiddenException("Only workspace owners and admins can assign customer requests");
     }
@@ -101,7 +109,7 @@ export class WorkflowItemsService {
       await this.assertAssignableMember(organizationId, ownerId);
     }
     const dueAt = changesDueAt ? (dto.dueAt ? new Date(dto.dueAt) : null) : current.dueAt;
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.workflowItem.update({
         where: { id },
         data: {
@@ -120,7 +128,7 @@ export class WorkflowItemsService {
           organizationId,
           workspaceId: current.workspaceId,
           workflowItemId: current.id,
-          eventType: changesOwner ? "ASSIGNED" : "UPDATED",
+          eventType: changesOwner ? "ASSIGNED" : changesStatus ? "STATUS_CHANGED" : "UPDATED",
           actorUserId: actor.userId,
           payload: { ...dto, ownerId, dueAt: dueAt?.toISOString() ?? null }
         }
@@ -140,9 +148,31 @@ export class WorkflowItemsService {
           }
         });
       }
+      if (changesStatus) {
+        const recipients = notificationRecipients(actor.userId, ownerId, current.createdById);
+        if (recipients.length) {
+          await tx.outboxEvent.create({
+            data: {
+              organizationId,
+              type: "request.status_changed",
+              dedupeKey: `request-status-changed:${current.id}:${updated.updatedAt.toISOString()}`,
+              payload: {
+                workflowItemId: current.id,
+                recipientIds: recipients,
+                title: updated.title,
+                notificationType: "REQUEST_STATUS_CHANGED",
+                notificationTitle: `Request status changed to ${readableStatus(updated.status)}`,
+                notificationBody: updated.title
+              }
+            }
+          });
+        }
+      }
 
       return updated;
     });
+    this.realtime?.publish({ organizationId, workspaceId: updated.workspaceId, workflowItemId: updated.id, entity: "workflow_item", action: "updated" });
+    return updated;
   }
 
   private async assertAssignableMember(organizationId: string, userId: string) {
@@ -171,4 +201,8 @@ export class WorkflowItemsService {
     if (!workspace) throw new NotFoundException("Active workspace not found");
     return workspace.id;
   }
+}
+
+function readableStatus(status: string) {
+  return status.toLowerCase().split("_").map((part) => `${part[0]!.toUpperCase()}${part.slice(1)}`).join(" ");
 }

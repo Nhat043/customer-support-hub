@@ -68,6 +68,13 @@ export default function WorkflowItemDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<{ attachmentId: string; fileName: string; url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [workspaceRevision, setWorkspaceRevision] = useState(0);
+
+  useEffect(() => {
+    const refreshWorkspace = () => setWorkspaceRevision((value) => value + 1);
+    window.addEventListener("workspace-data-changed", refreshWorkspace);
+    return () => window.removeEventListener("workspace-data-changed", refreshWorkspace);
+  }, []);
 
   useEffect(() => {
     const session = getSession();
@@ -97,7 +104,7 @@ export default function WorkflowItemDetailPage() {
     }
 
     void load();
-  }, [params.id, params.orgSlug]);
+  }, [params.id, params.orgSlug, workspaceRevision]);
 
   useEffect(() => {
     return () => {

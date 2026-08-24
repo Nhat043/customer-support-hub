@@ -3,11 +3,20 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import { AgentDrawer } from "@/components/agent-drawer";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, API_ORIGIN } from "@/lib/api";
 import { clearSession, getSession, type StoredSession } from "@/lib/auth";
 
-type Notification = { id: string; title: string; body: string; readAt: string | null };
+type Notification = {
+  id: string;
+  title: string;
+  body: string;
+  type: "REQUEST_ASSIGNED" | "REQUEST_STATUS_CHANGED" | "COMMENT_ADDED" | "SLA_DUE_SOON" | "SLA_OVERDUE";
+  workflowItemId: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
 
 export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: React.ReactNode; orgSlug: string }>) {
   const router = useRouter();
@@ -19,6 +28,7 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
   const [showAssistant, setShowAssistant] = useState(false);
   const role = session?.activeMembershipRole;
   const canManageTeam = role === "OWNER" || role === "ADMIN";
+  const unreadNotificationCount = notifications.filter((item) => !item.readAt).length;
   const roleLabel = role === "OWNER" ? "Workspace owner" : role ? `${role.charAt(0)}${role.slice(1).toLowerCase()}` : "Loading role";
   const accountInitials = session?.user.fullName
     .split(" ")
@@ -39,9 +49,39 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
 
   useEffect(() => {
     if (!session) return;
-    void apiFetch<Notification[]>(`/orgs/${orgSlug}/notifications`, { accessToken: session.accessToken })
-      .then(setNotifications)
-      .catch(() => undefined);
+    let active = true;
+    const loadNotifications = () => {
+      void apiFetch<Notification[]>(`/orgs/${orgSlug}/notifications`, { accessToken: session.accessToken })
+        .then((items) => { if (active) setNotifications(items); })
+        .catch(() => undefined);
+    };
+    loadNotifications();
+    const interval = window.setInterval(loadNotifications, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [orgSlug, session]);
+
+  useEffect(() => {
+    const openAssistant = () => setShowAssistant(true);
+    window.addEventListener("open-support-copilot", openAssistant);
+    return () => window.removeEventListener("open-support-copilot", openAssistant);
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    const socket = io(`${API_ORIGIN}/workspace`, {
+      auth: { accessToken: session.accessToken },
+      transports: ["websocket"]
+    });
+    socket.on("connect", () => socket.emit("workspace.subscribe", { orgSlug }));
+    socket.on("workspace.changed", (change: { organizationId: string }) => {
+      window.dispatchEvent(new CustomEvent("workspace-data-changed", { detail: change }));
+    });
+    return () => {
+      socket.disconnect();
+    };
   }, [orgSlug, session]);
 
   async function logout() {
@@ -58,6 +98,36 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
       setShowAccountMenu(false);
       router.push("/login");
     }
+  }
+
+  async function markAllNotificationsRead() {
+    if (!session) return;
+    try {
+      await apiFetch(`/orgs/${orgSlug}/notifications/read`, {
+        method: "PATCH",
+        accessToken: session.accessToken
+      });
+      const readAt = new Date().toISOString();
+      setNotifications((current) => current.map((item) => item.readAt ? item : { ...item, readAt }));
+    } catch {
+      // Keep items unread when the server cannot persist the update.
+    }
+  }
+
+  async function openNotification(notification: Notification) {
+    if (session && !notification.readAt) {
+      try {
+        await apiFetch(`/orgs/${orgSlug}/notifications/${notification.id}/read`, {
+          method: "PATCH",
+          accessToken: session.accessToken
+        });
+        setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item));
+      } catch {
+        // Navigation remains available when the best-effort read update fails.
+      }
+    }
+    setShowNotifications(false);
+    if (notification.workflowItemId) router.push(`/orgs/${orgSlug}/workflow-items/${notification.workflowItemId}`);
   }
 
   return (
@@ -79,11 +149,16 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
               <Link className={navigationClass(`/orgs/${orgSlug}/workflow-items`, true)} href={`/orgs/${orgSlug}/workflow-items`}>Customer requests</Link>
               <Link className={navigationClass(`/orgs/${orgSlug}/knowledge`, true)} href={`/orgs/${orgSlug}/knowledge`}>Knowledge base</Link>
               {canManageTeam ? <Link className={navigationClass(`/orgs/${orgSlug}/team`, true)} href={`/orgs/${orgSlug}/team`}>Team and roles</Link> : null}
-              <button className={`btn secondary${showNotifications ? " nav-link-active" : ""}`} type="button" onClick={() => {
+              <button
+                className={`btn secondary notification-nav-button${showNotifications ? " nav-link-active" : ""}`}
+                type="button"
+                aria-label={unreadNotificationCount ? `Notifications, ${unreadNotificationCount} unread` : "Notifications"}
+                onClick={() => {
                 setShowNotifications((value) => !value);
                 setShowAccountMenu(false);
               }}>
-                Notifications{notifications.filter((item) => !item.readAt).length ? ` (${notifications.filter((item) => !item.readAt).length})` : ""}
+                Notifications
+                {unreadNotificationCount ? <span className="notification-unread-badge" aria-hidden="true">!</span> : null}
               </button>
               {canManageTeam ? <Link className={navigationClass(`/orgs/${orgSlug}/settings`, true)} href={`/orgs/${orgSlug}/settings`}>Settings</Link> : null}
             </nav>
@@ -121,7 +196,26 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
               ) : null}
             </div>
           </div>
-          {showNotifications ? <section className="card" style={{ position: "absolute", right: 24, top: 96, width: 340, zIndex: 2 }}><h3>Notifications</h3>{notifications.length ? notifications.map((item) => <article key={item.id} className="card"><strong>{item.title}</strong><p className="muted">{item.body}</p></article>) : <p className="muted">You are all caught up.</p>}</section> : null}
+          {showNotifications ? (
+            <section className="notification-popover" aria-label="Notifications">
+              <div className="notification-popover-heading">
+                <h3>Notifications</h3>
+                {unreadNotificationCount ? <button className="text-link" type="button" onClick={() => void markAllNotificationsRead()}>Mark all as read</button> : null}
+              </div>
+              {notifications.length ? (
+                <div className="notification-list">
+                  {notifications.map((item) => (
+                    <button className={`notification-item${item.readAt ? "" : " unread"}`} key={item.id} type="button" onClick={() => void openNotification(item)}>
+                      <span className={`notification-type notification-${item.type.toLowerCase()}`}>{notificationTypeLabel(item.type)}</span>
+                      <strong>{item.title}</strong>
+                      <span>{item.body}</span>
+                      <small>{new Date(item.createdAt).toLocaleString()}</small>
+                    </button>
+                  ))}
+                </div>
+              ) : <p className="muted">You are all caught up.</p>}
+            </section>
+          ) : null}
         </header>
         {children}
         {!showAssistant ? (
@@ -137,4 +231,14 @@ export function OrgLayoutClient({ children, orgSlug }: Readonly<{ children: Reac
       </div>
     </main>
   );
+}
+
+function notificationTypeLabel(type: Notification["type"]) {
+  return {
+    REQUEST_ASSIGNED: "Assigned",
+    REQUEST_STATUS_CHANGED: "Status updated",
+    COMMENT_ADDED: "New comment",
+    SLA_DUE_SOON: "Due soon",
+    SLA_OVERDUE: "Overdue"
+  }[type];
 }

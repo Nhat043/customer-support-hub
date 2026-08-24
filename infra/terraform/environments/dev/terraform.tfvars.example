@@ -3,3 +3,13 @@ project_id             = "artful-memento-473909-k0"
 region                 = "asia-southeast1"
 environment            = "dev"
 attachment_bucket_name = "customer-support-hub-artful-memento-473909-k0-attachments"
+
+# Cloud Run starts only after images and Secret Manager versions are ready.
+deploy_cloud_run    = false
+cloud_run_image_tag = "v1"
+
+# Add these only for deployed transactional email and Qdrant Cloud.
+# email_provider = "gmail"
+# email_from     = "Customer Support Hub <your-gmail@gmail.com>"
+# smtp_user      = "your-gmail@gmail.com"
+# qdrant_url     = "https://YOUR-QDRANT-CLUSTER.cloud.qdrant.io"

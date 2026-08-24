@@ -3,8 +3,16 @@ import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { EmailService } from "../../infrastructure/email/email.service";
 import { MetricsService } from "../../infrastructure/observability/metrics.service";
 
-type AssignmentPayload = { workflowItemId: string; assigneeId: string; title: string; dueAt?: string | null };
-type NotificationPayload = AssignmentPayload & { notificationType?: "REQUEST_ASSIGNED" | "SLA_DUE_SOON" | "SLA_OVERDUE"; notificationTitle?: string };
+type NotificationPayload = {
+  workflowItemId: string;
+  assigneeId?: string;
+  recipientIds?: string[];
+  title: string;
+  dueAt?: string | null;
+  notificationType?: "REQUEST_ASSIGNED" | "REQUEST_STATUS_CHANGED" | "COMMENT_ADDED" | "SLA_DUE_SOON" | "SLA_OVERDUE";
+  notificationTitle?: string;
+  notificationBody?: string;
+};
 
 @Injectable()
 export class NotificationsWorker implements OnModuleInit, OnModuleDestroy {
@@ -35,13 +43,26 @@ export class NotificationsWorker implements OnModuleInit, OnModuleDestroy {
     if (claimed.count !== 1) return;
     const event = await this.prisma.outboxEvent.findUniqueOrThrow({ where: { id } });
     try {
-      if (!["request.assigned", "request.sla_due_soon", "request.sla_overdue"].includes(event.type)) throw new Error(`Unsupported outbox event: ${event.type}`);
+      if (!["request.assigned", "request.status_changed", "request.comment_added", "request.sla_due_soon", "request.sla_overdue"].includes(event.type)) throw new Error(`Unsupported outbox event: ${event.type}`);
       const payload = event.payload as unknown as NotificationPayload;
-      const user = await this.prisma.user.findUniqueOrThrow({ where: { id: payload.assigneeId }, select: { email: true } });
+      const recipientIds = [...new Set(payload.recipientIds ?? (payload.assigneeId ? [payload.assigneeId] : []))];
+      if (!recipientIds.length) throw new Error("Notification event has no recipients");
       const type = payload.notificationType ?? "REQUEST_ASSIGNED";
       const title = payload.notificationTitle ?? "New customer request assigned";
-      await this.prisma.notification.upsert({ where: { outboxEventId: event.id }, create: { outboxEventId: event.id, organizationId: event.organizationId, userId: payload.assigneeId, workflowItemId: payload.workflowItemId, type, title, body: payload.title }, update: {} });
-      if (this.email.isEnabled()) {
+      await this.prisma.notification.createMany({
+        data: recipientIds.map((userId) => ({
+          outboxEventId: event.id,
+          organizationId: event.organizationId,
+          userId,
+          workflowItemId: payload.workflowItemId,
+          type,
+          title,
+          body: payload.notificationBody ?? payload.title
+        })),
+        skipDuplicates: true
+      });
+      if (event.type === "request.assigned" && payload.assigneeId && this.email.isEnabled()) {
+        const user = await this.prisma.user.findUniqueOrThrow({ where: { id: payload.assigneeId }, select: { email: true } });
         const delivery = await this.email.sendRequestAssigned({ recipient: user.email, requestTitle: payload.title, dueAt: payload.dueAt ? new Date(payload.dueAt) : null });
         if (!delivery.sent) throw new Error("Email delivery failed");
       }
