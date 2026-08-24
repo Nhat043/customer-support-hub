@@ -79,7 +79,9 @@ export class AgentService {
 
     const [conversation, knowledge] = await Promise.all([
       this.recentConversation(organizationId, userId, workspaceId),
-      this.knowledge.retrieve(organizationId, workspaceId, dto.message)
+      shouldRetrieveWorkspaceKnowledge(dto.message)
+        ? this.knowledge.retrieve(organizationId, workspaceId, dto.message)
+        : Promise.resolve([])
     ]);
 
     const modelName = this.config.get<string>("AI_MODEL", "mock-function-caller");
@@ -329,4 +331,14 @@ export class AgentService {
       typeof (citation as { excerpt?: unknown }).excerpt === "string"
     ));
   }
+}
+
+// RAG is for durable policies and playbooks, not an operational command that
+// should be handled through an approved function call.
+export function shouldRetrieveWorkspaceKnowledge(message: string) {
+  const normalized = message.trim().toLowerCase();
+  const operationalCommand = /\b(create|add|log|open|show|list|assign|update|change|set|close|resolve|comment|navigate|go\s+to)\b|\b(tạo|thêm|mở|liệt kê|gán|đổi|đặt|đóng|giải quyết|bình luận|đi tới)\b/i;
+  if (operationalCommand.test(normalized)) return false;
+
+  return /\b(policy|playbook|guide|faq|refund|return|delivery|delayed|damaged|damage|sla|warranty|shipping|eligible|order)\b|\b(chính sách|hoàn tiền|giao hàng|trễ|hư hỏng|bảo hành)\b/i.test(normalized);
 }

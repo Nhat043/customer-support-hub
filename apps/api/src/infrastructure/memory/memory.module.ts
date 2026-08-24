@@ -39,7 +39,10 @@ import { VECTOR_STORE } from "./vector-store";
       useFactory: (config: ConfigService, inMemory: InMemoryVectorStore, embeddings: { dimensions: number }) => {
         if (config.get<string>("VECTOR_STORE", "in-memory") !== "qdrant") return inMemory;
         return new QdrantVectorStore(
-          new QdrantClient({ url: config.get<string>("QDRANT_URL", "http://localhost:6333") }),
+          new QdrantClient({
+            url: config.get<string>("QDRANT_URL", "http://localhost:6333"),
+            apiKey: config.get<string>("QDRANT_API_KEY") || undefined
+          }),
           config.get<string>("QDRANT_COLLECTION", "agent_memory_semantic_v1"),
           embeddings.dimensions
         );

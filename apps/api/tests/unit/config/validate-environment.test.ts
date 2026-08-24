@@ -97,6 +97,20 @@ test("semantic Gemini memory requires an API key and valid dimensions", () => {
   );
 });
 
+test("Qdrant Cloud requires an endpoint API key", () => {
+  assert.throws(
+    () => validateEnvironment({ VECTOR_STORE: "qdrant", QDRANT_URL: "https://cluster.cloud.qdrant.io" }),
+    /QDRANT_API_KEY/,
+  );
+  assert.doesNotThrow(() =>
+    validateEnvironment({
+      VECTOR_STORE: "qdrant",
+      QDRANT_URL: "https://cluster.cloud.qdrant.io",
+      QDRANT_API_KEY: "qdrant-api-key",
+    }),
+  );
+});
+
 test("configuration rejects invalid agent rate limits", () => {
   assert.throws(
     () => validateEnvironment({ AGENT_RATE_LIMIT_USER_PER_MINUTE: "0", AGENT_RATE_LIMIT_ORGANIZATION_PER_MINUTE: "many" }),

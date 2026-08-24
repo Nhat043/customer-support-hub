@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { getSession } from "@/lib/auth";
+import { getSession, saveSession } from "@/lib/auth";
 
 type Organization = { id: string; slug: string; name: string };
 type Workspace = { id: string; slug: string; name: string };
@@ -65,7 +65,7 @@ export default function OrgSettingsPage() {
       });
       setOrganizationName("");
       session.activeOrganizationSlug = organization.slug;
-      sessionStorage.setItem("customer-support-hub.session", JSON.stringify(session));
+      saveSession(session);
       router.push(`/orgs/${organization.slug}/settings`);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Could not create organization");

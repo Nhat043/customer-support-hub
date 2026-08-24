@@ -226,6 +226,7 @@ account and domain.
 
 ## Roadmap
 
-- Request assignment, SLA targets, and customer-facing status updates.
+- Expand notification preferences and add a production email provider after a
+  verified sending domain is available.
 - Agent evaluation datasets and production-grade semantic-memory observability.
 - Tenant-level analytics and agent evaluation datasets.

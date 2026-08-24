@@ -20,6 +20,7 @@ function createHarness(options: {
   const hookEvents: string[] = [];
   const metricEvents: string[] = [];
   const memoryEvents: string[] = [];
+  let knowledgeCalls = 0;
   const runQueries: Array<Record<string, unknown>> = [];
   const deletedRunQueries: Array<Record<string, unknown>> = [];
   const prisma = {
@@ -84,7 +85,10 @@ function createHarness(options: {
     list: async () => [{ id: "memory-1" }]
   } as any;
   const knowledge = {
-    retrieve: async () => options.knowledge ?? []
+    retrieve: async () => {
+      knowledgeCalls += 1;
+      return options.knowledge ?? [];
+    }
   } as any;
   const provider = options.provider ?? {
     complete: async () => ({
@@ -94,7 +98,7 @@ function createHarness(options: {
   };
   const service = new AgentService(prisma, tools, config, metrics, memory, knowledge, provider);
 
-  return { service, updates, createdRuns, hookEvents, metricEvents, memoryEvents, runQueries, deletedRunQueries };
+  return { service, updates, createdRuns, hookEvents, metricEvents, memoryEvents, knowledgeCalls: () => knowledgeCalls, runQueries, deletedRunQueries };
 }
 
 test("agent service replays a completed run for the same idempotency key", async () => {
@@ -150,6 +154,35 @@ test("agent service uses the active session workspace when the client does not s
   });
 
   assert.equal(createdRuns[0]?.workspaceId, "workspace-1");
+});
+
+test("agent does not retrieve or cite workspace knowledge for an operational request command", async () => {
+  const { service, knowledgeCalls } = createHarness({
+    knowledge: [{ chunkId: "chunk-1", documentId: "document-1", title: "Acme support playbook", fileName: "acme.md", excerpt: "Refund policy", score: 0.9 }],
+    provider: { complete: async () => ({ text: "What is the title of the request you would like to create?" }) }
+  });
+
+  const result = await service.run("org-1", "user-1", "session-1", "MEMBER", "create-request-key", {
+    message: "create a request for me"
+  });
+
+  assert.equal(knowledgeCalls(), 0);
+  assert.deepEqual(result.citations, []);
+});
+
+test("agent retrieves and returns citations for a policy question", async () => {
+  const citation = { chunkId: "chunk-1", documentId: "document-1", title: "Acme support playbook", fileName: "acme.md", excerpt: "Orders delayed for more than 3 days", score: 0.9 };
+  const { service, knowledgeCalls } = createHarness({
+    knowledge: [citation],
+    provider: { complete: async () => ({ text: "An order is delayed after 3 business days." }) }
+  });
+
+  const result = await service.run("org-1", "user-1", "session-1", "MEMBER", "policy-key", {
+    message: "When is an order considered delayed?"
+  });
+
+  assert.equal(knowledgeCalls(), 1);
+  assert.deepEqual(result.citations, [citation]);
 });
 
 test("agent service feeds a tool result back to the provider for a natural final answer", async () => {

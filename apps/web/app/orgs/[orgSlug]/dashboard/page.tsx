@@ -39,6 +39,7 @@ export default function OrgDashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceSlug, setWorkspaceSlug] = useState("");
   const [ready, setReady] = useState(false);
+  const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const session = getSession();
   const role = session?.activeMembershipRole;
   const isOwner = role === "OWNER";
@@ -48,6 +49,12 @@ export default function OrgDashboardPage() {
   useEffect(() => {
     setOrgSlug(params.orgSlug ?? "demo");
   }, [params.orgSlug]);
+
+  useEffect(() => {
+    const refreshWorkspace = () => setWorkspaceRevision((value) => value + 1);
+    window.addEventListener("workspace-data-changed", refreshWorkspace);
+    return () => window.removeEventListener("workspace-data-changed", refreshWorkspace);
+  }, []);
 
   useEffect(() => {
     const activeSession = getSession();
@@ -86,7 +93,7 @@ export default function OrgDashboardPage() {
     }
 
     void load();
-  }, [orgSlug]);
+  }, [orgSlug, workspaceRevision]);
 
   async function switchOrganization(nextOrgSlug: string) {
     const activeSession = getSession();
@@ -242,9 +249,17 @@ export default function OrgDashboardPage() {
           {canManageTeam ? (
             <Link className="btn secondary" href={`/orgs/${orgSlug}/team`}>Manage team and roles</Link>
           ) : null}
-          <Link className="btn secondary" href={`/orgs/${orgSlug}/agent`}>Open AI helper</Link>
+          <button className="btn secondary" type="button" onClick={() => window.dispatchEvent(new Event("open-support-copilot"))}>
+            Open AI helper
+          </button>
         </aside>
       </section>
+
+      <footer className="dashboard-project-credit">
+        <span>Created by</span>
+        <strong>Nguyen Le Nhat</strong>
+        <a href="mailto:nhatnl04doit@gmail.com">nhatnl04doit@gmail.com</a>
+      </footer>
     </section>
   );
 }

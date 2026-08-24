@@ -1,0 +1,40 @@
+server {
+  listen ${PORT};
+  server_name _;
+  client_max_body_size 10m;
+
+  # API requests retain the /api prefix because Nest configures it globally.
+  location /api/ {
+    proxy_pass http://127.0.0.1:4000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    proxy_read_timeout 300s;
+  }
+
+  # Socket.IO uses this path for both /agent and /workspace namespaces.
+  location /socket.io/ {
+    proxy_pass http://127.0.0.1:4000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    proxy_read_timeout 300s;
+  }
+
+  # The Next.js standalone server handles pages, static assets, and redirects.
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    proxy_read_timeout 300s;
+  }
+}

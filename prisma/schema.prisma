@@ -6,6 +6,8 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Runtime uses Supavisor's transaction pooler; migrations use a session/direct URL.
+  directUrl = env("DIRECT_URL")
 }
 
 enum OrganizationStatus {
@@ -119,6 +121,8 @@ enum OutboxEventStatus {
 
 enum NotificationType {
   REQUEST_ASSIGNED
+  REQUEST_STATUS_CHANGED
+  COMMENT_ADDED
   SLA_DUE_SOON
   SLA_OVERDUE
 }
@@ -273,7 +277,7 @@ model OutboxEvent {
 
 model Notification {
   id             String           @id @default(uuid()) @db.Uuid
-  outboxEventId  String           @unique @db.Uuid
+  outboxEventId  String           @db.Uuid
   organizationId String           @db.Uuid
   userId         String           @db.Uuid
   type           NotificationType
@@ -289,6 +293,7 @@ model Notification {
 
   @@index([userId, readAt, createdAt])
   @@index([organizationId, createdAt])
+  @@unique([outboxEventId, userId])
 }
 
 model PasswordResetOtp {

@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 45
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/customer_support_hub_ci?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/customer_support_hub_ci?schema=public
       REDIS_URL: redis://localhost:6379
       QDRANT_URL: http://localhost:6333
       QDRANT_COLLECTION: customer_support_hub_ci_memory

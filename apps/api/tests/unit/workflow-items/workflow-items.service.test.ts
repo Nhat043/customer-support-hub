@@ -11,6 +11,7 @@ const currentItem = {
   status: "NEW",
   priority: "MEDIUM",
   ownerId: null,
+  createdById: "owner-1",
   dueAt: null,
   closedAt: null,
   owner: null,
@@ -21,7 +22,7 @@ const currentItem = {
 };
 
 test("create attaches a customer request and audit event to the active workspace", async () => {
-  const calls: { item?: any; event?: any } = {};
+  const calls: { item?: any; event?: any; realtime?: any } = {};
   const prisma = {
     workspace: { findFirst: async () => ({ id: "workspace-general" }) },
     $transaction: async (callback: any) => callback({
@@ -39,13 +40,20 @@ test("create attaches a customer request and audit event to the active workspace
       }
     })
   };
-  const service = new WorkflowItemsService(prisma as any);
+  const service = new WorkflowItemsService(prisma as any, { publish: (change: any) => { calls.realtime = change; } } as any);
 
   await service.create("org-1", "owner-1", { title: "Delivery delay" });
 
   assert.equal(calls.item.workspaceId, "workspace-general");
   assert.equal(calls.event.workspaceId, "workspace-general");
   assert.equal(calls.event.eventType, "CREATED");
+  assert.deepEqual(calls.realtime, {
+    organizationId: "org-1",
+    workspaceId: "workspace-general",
+    workflowItemId: "item-1",
+    entity: "workflow_item",
+    action: "created"
+  });
 });
 
 test("list resolves the active workspace and never returns another workspace's requests", async () => {
@@ -79,14 +87,14 @@ test("member cannot assign a customer request", async () => {
   );
 });
 
-test("member can update a customer request status without changing assignment or deadline", async () => {
-  const calls: { update?: any; event?: any } = {};
+test("member status change notifies the request creator without changing assignment or deadline", async () => {
+  const calls: { update?: any; event?: any; outbox?: any } = {};
   const prisma = {
     workflowItem: { findFirst: async () => currentItem },
     $transaction: async (callback: any) => callback({
-      workflowItem: { update: async ({ data }: any) => { calls.update = data; return { ...currentItem, ...data }; } },
+      workflowItem: { update: async ({ data }: any) => { calls.update = data; return { ...currentItem, ...data, updatedAt: new Date("2026-08-17T00:00:00.000Z") }; } },
       workflowEvent: { create: async ({ data }: any) => { calls.event = data; return data; } },
-      outboxEvent: { create: async () => ({ id: "outbox-1" }) }
+      outboxEvent: { create: async ({ data }: any) => { calls.outbox = data; return { id: "outbox-1" }; } }
     })
   };
   const service = new WorkflowItemsService(prisma as any);
@@ -96,7 +104,9 @@ test("member can update a customer request status without changing assignment or
   assert.equal(calls.update.status, "IN_PROGRESS");
   assert.equal(calls.update.ownerId, null);
   assert.equal(calls.update.dueAt, null);
-  assert.equal(calls.event.eventType, "UPDATED");
+  assert.equal(calls.event.eventType, "STATUS_CHANGED");
+  assert.deepEqual(calls.outbox.payload.recipientIds, ["owner-1"]);
+  assert.equal(calls.outbox.type, "request.status_changed");
 });
 
 test("owner assigns an active team member and deadline with an assignment event", async () => {

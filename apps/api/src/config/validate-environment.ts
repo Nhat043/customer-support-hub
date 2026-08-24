@@ -45,6 +45,20 @@ export function validateEnvironment(environment: Environment): Environment {
   if (environment.EMBEDDING_PROVIDER === "gemini" && !environment.GEMINI_API_KEY) {
     errors.push("GEMINI_API_KEY is required when EMBEDDING_PROVIDER=gemini");
   }
+  if (environment.VECTOR_STORE && !["in-memory", "qdrant"].includes(environment.VECTOR_STORE)) {
+    errors.push("VECTOR_STORE must be in-memory or qdrant");
+  }
+  if (environment.VECTOR_STORE === "qdrant") {
+    if (!environment.QDRANT_URL) {
+      errors.push("QDRANT_URL is required when VECTOR_STORE=qdrant");
+    }
+    const usesCloudQdrant = Boolean(
+      environment.QDRANT_URL && !environment.QDRANT_URL.includes("localhost") && !environment.QDRANT_URL.includes("127.0.0.1"),
+    );
+    if (usesCloudQdrant && !environment.QDRANT_API_KEY) {
+      errors.push("QDRANT_API_KEY is required for a Qdrant Cloud endpoint");
+    }
+  }
   if (environment.EMBEDDING_DIMENSIONS && (!/^\d+$/.test(environment.EMBEDDING_DIMENSIONS) || Number(environment.EMBEDDING_DIMENSIONS) < 1)) {
     errors.push("EMBEDDING_DIMENSIONS must be a positive integer");
   }
@@ -99,6 +113,9 @@ export function validateEnvironment(environment: Environment): Environment {
       errors,
     );
     validateSecret("CSRF_SECRET", environment.CSRF_SECRET, errors);
+    if (environment.VECTOR_STORE === "qdrant" && environment.EMBEDDING_PROVIDER !== "gemini") {
+      errors.push("EMBEDDING_PROVIDER must be gemini with Qdrant in production");
+    }
   }
 
   if (errors.length > 0) {
