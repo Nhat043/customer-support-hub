@@ -53,7 +53,8 @@ export function validateEnvironment(environment: Environment): Environment {
       errors.push("QDRANT_URL is required when VECTOR_STORE=qdrant");
     }
     const usesCloudQdrant = Boolean(
-      environment.QDRANT_URL && !environment.QDRANT_URL.includes("localhost") && !environment.QDRANT_URL.includes("127.0.0.1"),
+      environment.QDRANT_URL &&
+        !/^https?:\/\/(localhost|127\.0\.0\.1|qdrant)(:\d+)?(?:\/|$)/i.test(environment.QDRANT_URL),
     );
     if (usesCloudQdrant && !environment.QDRANT_API_KEY) {
       errors.push("QDRANT_API_KEY is required for a Qdrant Cloud endpoint");
