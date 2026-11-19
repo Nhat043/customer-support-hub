@@ -185,7 +185,7 @@ Set these uncommitted `.env` values to use Gemini for both the agent and semanti
 
 ```dotenv
 AI_PROVIDER=gemini
-AI_MODEL=gemini-2.5-flash
+AI_MODEL=gemini-3.6-flash
 GEMINI_API_KEY=your-gemini-api-key
 VECTOR_STORE=qdrant
 EMBEDDING_PROVIDER=gemini
