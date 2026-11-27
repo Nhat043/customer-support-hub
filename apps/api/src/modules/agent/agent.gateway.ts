@@ -9,7 +9,8 @@ import { ConfigService } from "@nestjs/config";
 import { ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import type { Socket } from "socket.io";
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { TenantAccessService } from "../../common/security/tenant-access.service";
+import type { AuthenticatedUser } from "../../common/types/request-context";
 import { AgentService } from "./agent.service";
 import { CreateAgentRunDto } from "./dto/agent.dto";
 import { AgentRateLimitGuard } from "../../common/guards/agent-rate-limit.guard";
@@ -33,7 +34,7 @@ export class AgentGateway implements OnGatewayConnection {
     private readonly agentService: AgentService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
-    private readonly prisma: PrismaService,
+    private readonly tenantAccess: TenantAccessService,
     private readonly agentRateLimit: AgentRateLimitGuard
   ) {}
 
@@ -82,28 +83,23 @@ export class AgentGateway implements OnGatewayConnection {
   private async authenticate(socket: Socket, orgSlug: string | undefined): Promise<AgentPrincipal> {
     const accessToken = socket.handshake.auth?.accessToken as string | undefined;
     if (!accessToken || !orgSlug) throw new UnauthorizedException("Missing agent authentication");
-    let payload: { userId: string; sessionId: string };
+    let payload: AuthenticatedUser;
     try {
-      payload = this.jwtService.verify(accessToken, {
+      payload = this.jwtService.verify<AuthenticatedUser>(accessToken, {
         secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET")
       });
     } catch {
       throw new UnauthorizedException("Invalid access token");
     }
 
-    const session = await this.prisma.session.findUnique({
-      where: { id: payload.sessionId },
-      include: { user: true }
-    });
-    if (!session || session.status !== "ACTIVE" || session.expiresAt <= new Date() || session.user.status !== "ACTIVE") {
-      throw new UnauthorizedException("Session is not active");
-    }
-    const organization = await this.prisma.organization.findUnique({ where: { slug: orgSlug } });
-    if (!organization) throw new UnauthorizedException("Organization not found");
-    const membership = await this.prisma.membership.findUnique({
-      where: { organizationId_userId: { organizationId: organization.id, userId: payload.userId } }
-    });
-    if (!membership || membership.status !== "ACTIVE") throw new UnauthorizedException("No organization access");
+    // Same session and membership rules the HTTP guards apply, so a socket
+    // client cannot reach a tenant that the REST API would refuse.
+    await this.tenantAccess.requireActiveSession(payload.sessionId);
+    const { organization, membership } = await this.tenantAccess.requireMembership(
+      payload.userId,
+      orgSlug
+    );
+
     return {
       userId: payload.userId,
       sessionId: payload.sessionId,

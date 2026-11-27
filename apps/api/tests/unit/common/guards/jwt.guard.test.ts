@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { JwtGuard } from "../../../../src/common/guards/jwt.guard";
+import { TenantAccessService } from "../../../../src/common/security/tenant-access.service";
+
+// The guard delegates session checks, so these tests drive the real service over
+// a Prisma stub instead of re-stubbing rules the service owns.
+function tenantAccessWith(session: unknown) {
+  return new TenantAccessService({ session: { findUnique: async () => session } } as never);
+}
 
 function context() {
   return {
@@ -25,7 +32,7 @@ function guardWithSession(session: unknown) {
     { getAllAndOverride: () => false } as never,
     { verify: () => ({ userId: "user-1", sessionId: "session-1" }) } as never,
     { getOrThrow: () => "secret" } as never,
-    { session: { findUnique: async () => session } } as never
+    tenantAccessWith(session)
   );
 }
 
@@ -34,7 +41,7 @@ function guardWith(reflector: boolean, session: unknown, verify: () => unknown =
     { getAllAndOverride: () => reflector } as never,
     { verify } as never,
     { getOrThrow: () => "secret" } as never,
-    { session: { findUnique: async () => session } } as never
+    tenantAccessWith(session)
   );
 }
 
