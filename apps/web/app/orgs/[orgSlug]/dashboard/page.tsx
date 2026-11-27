@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { clearSession, getSession, saveSession, type MembershipRole } from "@/lib/auth";
+import { getSession, saveSession, type MembershipRole } from "@/lib/auth";
+import { useSession } from "@/lib/use-session";
 
 type Organization = {
   id: string;
@@ -40,7 +41,7 @@ export default function OrgDashboardPage() {
   const [workspaceSlug, setWorkspaceSlug] = useState("");
   const [ready, setReady] = useState(false);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
-  const session = getSession();
+  const { session } = useSession();
   const role = session?.activeMembershipRole;
   const isOwner = role === "OWNER";
   const canManageTeam = isOwner || role === "ADMIN";
@@ -86,7 +87,11 @@ export default function OrgDashboardPage() {
         );
         setItems(workflowItems);
       } catch {
-        clearSession();
+        // Deliberately does not clear the session. Leaving the dashboard aborts
+        // whatever is still in flight, and an aborted or transient request is
+        // not evidence that the session is invalid. apiFetch already clears it
+        // when the API actually rejects the access token, so signing the user
+        // out here logged people out mid-navigation.
       } finally {
         setReady(true);
       }
