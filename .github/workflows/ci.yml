@@ -16,7 +16,10 @@ concurrency:
 jobs:
   verify:
     name: Verify application
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: that label moved to Ubuntu 26.04, which
+    # Playwright 1.55 cannot install browsers for. Revisit when Playwright is
+    # upgraded to a release that supports 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/customer_support_hub_ci?schema=public
