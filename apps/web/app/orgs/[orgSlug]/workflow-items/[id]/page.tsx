@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { API_BASE_URL, apiFetch } from "@/lib/api";
 import { getSession } from "@/lib/auth";
+import { useSession } from "@/lib/use-session";
 
 type WorkflowItem = {
   id: string;
@@ -57,6 +58,9 @@ type Comment = {
 
 export default function WorkflowItemDetailPage() {
   const params = useParams<{ orgSlug: string; id: string }>();
+  // Must stay above the `if (!item)` guard below: hooks cannot be called after
+  // a conditional return.
+  const { session: currentSession } = useSession();
   const [item, setItem] = useState<WorkflowItem | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -239,8 +243,8 @@ export default function WorkflowItemDetailPage() {
     return <section className="card">{error ?? "Loading workflow item..."}</section>;
   }
 
-  const activeRole = getSession()?.activeMembershipRole ?? "";
-  const currentUserId = getSession()?.user.id;
+  const activeRole = currentSession?.activeMembershipRole ?? "";
+  const currentUserId = currentSession?.user.id;
   const canUploadAttachments = ["OWNER", "ADMIN", "MEMBER"].includes(activeRole);
 
   return (
@@ -261,7 +265,7 @@ export default function WorkflowItemDetailPage() {
           </p>
         </section>
 
-        {(["OWNER", "ADMIN"].includes(getSession()?.activeMembershipRole ?? "")) ? (
+        {(["OWNER", "ADMIN"].includes(activeRole)) ? (
           <section className="card">
             <h3>Assignment and SLA</h3>
             <p className="muted">Assign an active teammate and set the deadline this request should meet.</p>
