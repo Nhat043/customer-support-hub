@@ -29,8 +29,11 @@ services:
       WEB_BASE_URL: http://localhost:3000
       # Deliberately separate from DATABASE_URL in .env to prevent using a stale DB by accident.
       DATABASE_URL: ${LOCAL_DATABASE_URL:?Set LOCAL_DATABASE_URL to the local PostgreSQL database URL}
+      # Prisma migrations also need a direct/session URL. Local PostgreSQL uses the same endpoint.
+      DIRECT_URL: ${LOCAL_DATABASE_URL:?Set LOCAL_DATABASE_URL to the local PostgreSQL database URL}
       REDIS_URL: redis://redis:6379
       VECTOR_STORE: qdrant
+      # Always use the local Compose Qdrant service; cloud Qdrant belongs to deployment config.
       QDRANT_URL: http://qdrant:6333
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-agent_memory_semantic_v1}
       AI_PROVIDER: ${AI_PROVIDER:-mock}

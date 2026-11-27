@@ -260,10 +260,17 @@ export default function OrgDashboardPage() {
         </aside>
       </section>
 
-      <footer className="dashboard-project-credit">
-        <span>Created by</span>
-        <strong>Nguyen Le Nhat</strong>
-        <a href="mailto:nhatnl04doit@gmail.com">nhatnl04doit@gmail.com</a>
+      <footer className="dashboard-project-credit" aria-label="About this project">
+        <div>
+          <p className="eyebrow">About this project</p>
+          <h2>Customer Support Hub</h2>
+          <p>Designed and built as a full-stack customer-support workspace demo.</p>
+        </div>
+        <address>
+          <span>Created by</span>
+          <strong>Nguyen Le Nhat</strong>
+          <a href="mailto:nhatnl04doit@gmail.com">nhatnl04doit@gmail.com</a>
+        </address>
       </footer>
     </section>
   );

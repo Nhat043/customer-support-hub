@@ -975,11 +975,32 @@ input {
 .dashboard-project-credit {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 16px 20px 4px;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px;
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  background: linear-gradient(110deg, rgba(102, 217, 239, 0.08), rgba(13, 23, 39, 0.72) 52%);
   color: var(--muted);
   font-size: 13px;
+}
+
+.dashboard-project-credit h2 {
+  margin: 7px 0;
+  color: var(--text);
+  font-size: 20px;
+}
+
+.dashboard-project-credit p:not(.eyebrow) {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dashboard-project-credit address {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  font-style: normal;
 }
 
 .dashboard-project-credit strong {
@@ -1227,6 +1248,15 @@ input {
     grid-template-columns: 1fr;
     min-width: 0;
     width: 100%;
+  }
+
+  .dashboard-project-credit {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .dashboard-project-credit address {
+    justify-items: start;
   }
 }
 
