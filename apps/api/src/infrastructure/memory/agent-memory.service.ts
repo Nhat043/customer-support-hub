@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { Prisma } from "../../../node_modules/.prisma/client";
+import type { Prisma } from "../prisma/prisma.types";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { EMBEDDING_PROVIDER, EmbeddingProvider } from "./embedding.provider";

@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { WorkflowItemStatus, WorkflowPriority } from "../../../node_modules/.prisma/client";
+import type { WorkflowItemStatus, WorkflowPriority } from "../../infrastructure/prisma/prisma.types";
 import type { AgentUiAction } from "./agent.provider";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { notificationRecipients } from "../notifications/notification-recipients";

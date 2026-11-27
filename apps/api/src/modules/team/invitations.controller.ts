@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import type { AuthenticatedUser } from "../../common/types/request-context";
 import { Public } from "../../common/decorators/public.decorator";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { AcceptInvitationDto } from "./dto/team.dto";
@@ -21,7 +22,7 @@ export class InvitationsController {
   @ApiBearerAuth("access-token")
   @Post("accept")
   accept(
-    @CurrentUser() user: { userId: string; sessionId: string },
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: AcceptInvitationDto,
   ) {
     return this.teamService.acceptInvitation({

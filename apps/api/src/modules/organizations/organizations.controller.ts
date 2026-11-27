@@ -1,5 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { CurrentOrg } from "../../common/decorators/current-org.decorator";
+import { CurrentMembership } from "../../common/decorators/current-membership.decorator";
+import type {
+  AuthenticatedUser,
+  RequestMembership,
+  RequestOrganization
+} from "../../common/types/request-context";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
 import { OrganizationsService } from "./organizations.service";
@@ -26,12 +33,12 @@ export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
 
   @Get()
-  list(@CurrentUser() user: { userId: string }) {
+  list(@CurrentUser() user: AuthenticatedUser) {
     return this.organizationsService.listForUser(user.userId);
   }
 
   @Post()
-  create(@CurrentUser() user: { userId: string }, @Body() dto: CreateOrganizationDto) {
+  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrganizationDto) {
     return this.organizationsService.create({
       userId: user.userId,
       name: dto.name,
@@ -47,15 +54,16 @@ export class OrganizationsController {
 
   @UseGuards(OrgGuard)
   @Post(":orgSlug/switch")
-  async switchOrg(@Req() req: any) {
-    await this.organizationsService.switchActive(
-      req.user.sessionId,
-      req.organization.id
-    );
+  async switchOrg(
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentOrg() organization: RequestOrganization,
+    @CurrentMembership() membership: RequestMembership
+  ) {
+    await this.organizationsService.switchActive(user.sessionId, organization.id);
     return {
       ok: true,
-      activeOrganizationId: req.organization.id,
-      activeMembershipRole: req.membership.role,
+      activeOrganizationId: organization.id,
+      activeMembershipRole: membership.role,
     };
   }
 }

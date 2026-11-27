@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { Prisma } from "../../../node_modules/.prisma/client";
+import type { Prisma } from "../../infrastructure/prisma/prisma.types";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
 import { AGENT_PROVIDER, AgentProvider, AgentRunHooks, AgentUiAction } from "./agent.provider";

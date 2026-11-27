@@ -33,7 +33,7 @@ export class WorkspaceKnowledgeService {
     @Inject(VECTOR_STORE) private readonly vectorStore: VectorStore
   ) {}
 
-  async list(organizationId: string, workspaceId?: string) {
+  async list(organizationId: string, workspaceId?: string | null) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
     return this.prisma.knowledgeDocument.findMany({
       where: { organizationId, workspaceId: resolvedWorkspaceId },
@@ -51,7 +51,7 @@ export class WorkspaceKnowledgeService {
     });
   }
 
-  async upload(organizationId: string, workspaceId: string | undefined, uploadedById: string, dto: IndexKnowledgeDocumentInput) {
+  async upload(organizationId: string, workspaceId: string | null | undefined, uploadedById: string, dto: IndexKnowledgeDocumentInput) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
     const content = normalizeText(dto.content);
     if (!content) throw new BadRequestException("Knowledge document content cannot be blank");
@@ -97,7 +97,7 @@ export class WorkspaceKnowledgeService {
     return { ...document, status: "READY" as const, chunkCount: records.length };
   }
 
-  async getDocument(organizationId: string, workspaceId: string | undefined, documentId: string) {
+  async getDocument(organizationId: string, workspaceId: string | null | undefined, documentId: string) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
     const document = await this.prisma.knowledgeDocument.findFirst({
       where: { id: documentId, organizationId, workspaceId: resolvedWorkspaceId },
@@ -117,7 +117,7 @@ export class WorkspaceKnowledgeService {
     return document;
   }
 
-  async retry(organizationId: string, workspaceId: string | undefined, documentId: string) {
+  async retry(organizationId: string, workspaceId: string | null | undefined, documentId: string) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
     const document = await this.prisma.knowledgeDocument.findFirst({
       where: { id: documentId, organizationId, workspaceId: resolvedWorkspaceId },
@@ -144,7 +144,7 @@ export class WorkspaceKnowledgeService {
     return { id: document.id, title: document.title, fileName: document.fileName, status: "READY" as const, chunkCount: document.chunkCount };
   }
 
-  async remove(organizationId: string, workspaceId: string | undefined, documentId: string) {
+  async remove(organizationId: string, workspaceId: string | null | undefined, documentId: string) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(organizationId, workspaceId);
     const document = await this.prisma.knowledgeDocument.findFirst({
       where: { id: documentId, organizationId, workspaceId: resolvedWorkspaceId },
@@ -156,7 +156,7 @@ export class WorkspaceKnowledgeService {
     return { deleted: true, documentId: document.id };
   }
 
-  async retrieve(organizationId: string, workspaceId: string | undefined, query: string, limit = 4): Promise<KnowledgeCitation[]> {
+  async retrieve(organizationId: string, workspaceId: string | null | undefined, query: string, limit = 4): Promise<KnowledgeCitation[]> {
     if (!workspaceId) return [];
     try {
       const vector = await this.embeddings.embed(query, "RETRIEVAL_QUERY");
@@ -199,7 +199,7 @@ export class WorkspaceKnowledgeService {
     }
   }
 
-  private async resolveWorkspaceId(organizationId: string, workspaceId?: string) {
+  private async resolveWorkspaceId(organizationId: string, workspaceId?: string | null) {
     const workspace = await this.prisma.workspace.findFirst({
       where: { organizationId, status: "ACTIVE", ...(workspaceId ? { id: workspaceId } : {}) },
       orderBy: { createdAt: "asc" },

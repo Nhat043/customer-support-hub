@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AgentGateway } from "../../../src/modules/agent/agent.gateway";
+import { TenantAccessService } from "../../../src/common/security/tenant-access.service";
 
 function createGatewayHarness() {
   const emitted: Array<{ event: string; payload: unknown }> = [];
@@ -29,7 +30,9 @@ function createGatewayHarness() {
     organization: { findUnique: async () => ({ id: "org-1" }) },
     membership: { findUnique: async () => ({ role: "MEMBER", status: "ACTIVE" }) }
   } as any;
-  return { gateway: new AgentGateway(agentService, jwtService, config, prisma, agentRateLimit), socket, emitted, jwtService, prisma, agentRateLimit };
+  // Same service the HTTP guards use, so this harness exercises the shared path.
+  const tenantAccess = new TenantAccessService(prisma);
+  return { gateway: new AgentGateway(agentService, jwtService, config, tenantAccess, agentRateLimit), socket, emitted, jwtService, prisma, agentRateLimit };
 }
 
 test("gateway emits streaming lifecycle events", async () => {
@@ -129,5 +132,5 @@ test("gateway rejects invalid token, expired session, organization and membershi
   const missingMembership = createGatewayHarness();
   missingMembership.prisma.membership.findUnique = async () => null;
   await missingMembership.gateway.run(missingMembership.socket, { orgSlug: "demo-org", message: "hello", idempotencyKey: "missing-membership" });
-  assert.match(String((missingMembership.emitted.at(-1)?.payload as any).message), /No organization access/);
+  assert.match(String((missingMembership.emitted.at(-1)?.payload as any).message), /No access to this organization/);
 });

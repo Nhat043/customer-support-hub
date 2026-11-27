@@ -1,45 +1,28 @@
 import {
   CanActivate,
   ExecutionContext,
-  Injectable,
-  NotFoundException,
-  ForbiddenException
+  ForbiddenException,
+  Injectable
 } from "@nestjs/common";
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import type { Request } from "express";
+import { TenantAccessService } from "../security/tenant-access.service";
 
 @Injectable()
 export class OrgGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly tenantAccess: TenantAccessService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as { userId?: string } | undefined;
+    const request = context.switchToHttp().getRequest<Request>();
     const orgSlug = request.params.orgSlug as string | undefined;
 
-    if (!user?.userId || !orgSlug) {
+    if (!request.user?.userId || !orgSlug) {
       throw new ForbiddenException("Missing tenant context");
     }
 
-    const organization = await this.prisma.organization.findUnique({
-      where: { slug: orgSlug }
-    });
-
-    if (!organization) {
-      throw new NotFoundException("Organization not found");
-    }
-
-    const membership = await this.prisma.membership.findUnique({
-      where: {
-        organizationId_userId: {
-          organizationId: organization.id,
-          userId: user.userId
-        }
-      }
-    });
-
-    if (!membership || membership.status !== "ACTIVE") {
-      throw new ForbiddenException("No access to this organization");
-    }
+    const { organization, membership } = await this.tenantAccess.requireMembership(
+      request.user.userId,
+      orgSlug
+    );
 
     request.organization = organization;
     request.membership = membership;

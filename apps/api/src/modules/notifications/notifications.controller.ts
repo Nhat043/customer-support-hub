@@ -1,40 +1,35 @@
-import { Controller, Get, Param, Patch, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Patch, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
-import { PrismaService } from "../../infrastructure/prisma/prisma.service";
+import { CurrentOrg } from "../../common/decorators/current-org.decorator";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import type { AuthenticatedUser, RequestOrganization } from "../../common/types/request-context";
+import { NotificationsService } from "./notifications.service";
 
 @UseGuards(JwtGuard, OrgGuard)
 @ApiTags("Notifications")
 @ApiBearerAuth("access-token")
 @Controller("orgs/:orgSlug/notifications")
 export class NotificationsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly notificationsService: NotificationsService) {}
 
   @Get()
-  list(@Req() req: any) {
-    return this.prisma.notification.findMany({
-      where: { organizationId: req.organization.id, userId: req.user.userId },
-      orderBy: { createdAt: "desc" },
-      take: 50
-    });
+  list(@CurrentOrg() organization: RequestOrganization, @CurrentUser() user: AuthenticatedUser) {
+    return this.notificationsService.list(organization.id, user.userId);
   }
 
   @Patch(":id/read")
-  async markRead(@Req() req: any, @Param("id") id: string) {
-    const updated = await this.prisma.notification.updateMany({
-      where: { id, organizationId: req.organization.id, userId: req.user.userId, readAt: null },
-      data: { readAt: new Date() }
-    });
-    return { ok: true, updated: updated.count === 1 };
+  markRead(
+    @CurrentOrg() organization: RequestOrganization,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string
+  ) {
+    return this.notificationsService.markRead(organization.id, user.userId, id);
   }
 
   @Patch("read")
-  async markAllRead(@Req() req: any) {
-    const updated = await this.prisma.notification.updateMany({
-      where: { organizationId: req.organization.id, userId: req.user.userId, readAt: null },
-      data: { readAt: new Date() }
-    });
-    return { ok: true, updated: updated.count };
+  markAllRead(@CurrentOrg() organization: RequestOrganization, @CurrentUser() user: AuthenticatedUser) {
+    return this.notificationsService.markAllRead(organization.id, user.userId);
   }
 }

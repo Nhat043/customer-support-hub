@@ -6,11 +6,17 @@ import {
   Param,
   Patch,
   Post,
-  Req,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { CurrentOrg } from "../../common/decorators/current-org.decorator";
+import { CurrentMembership } from "../../common/decorators/current-membership.decorator";
+import type {
+  AuthenticatedUser,
+  RequestMembership,
+  RequestOrganization,
+} from "../../common/types/request-context";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
@@ -30,27 +36,28 @@ export class TeamController {
 
   @Get("members")
   @Roles("OWNER", "ADMIN", "MEMBER")
-  listMembers(@Req() req: any) {
-    return this.teamService.listMembers(req.organization.id);
+  listMembers(@CurrentOrg() organization: RequestOrganization) {
+    return this.teamService.listMembers(organization.id);
   }
 
   @Get("invitations")
   @Roles("OWNER", "ADMIN")
-  listInvitations(@Req() req: any) {
-    return this.teamService.listInvitations(req.organization.id);
+  listInvitations(@CurrentOrg() organization: RequestOrganization) {
+    return this.teamService.listInvitations(organization.id);
   }
 
   @Post("invitations")
   @Roles("OWNER", "ADMIN")
   createInvitation(
-    @Req() req: any,
-    @CurrentUser() user: { userId: string },
+    @CurrentOrg() organization: RequestOrganization,
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentMembership() membership: RequestMembership,
     @Body() dto: CreateInvitationDto,
   ) {
     return this.teamService.createInvitation({
-      organizationId: req.organization.id,
+      organizationId: organization.id,
       invitedById: user.userId,
-      inviterRole: req.membership.role,
+      inviterRole: membership.role,
       email: dto.email,
       role: dto.role,
     });
@@ -59,28 +66,29 @@ export class TeamController {
   @Delete("invitations/:invitationId")
   @Roles("OWNER", "ADMIN")
   revokeInvitation(
-    @Req() req: any,
-    @CurrentUser() user: { userId: string },
+    @CurrentOrg() organization: RequestOrganization,
+    @CurrentUser() user: AuthenticatedUser,
+    @CurrentMembership() membership: RequestMembership,
     @Param("invitationId") invitationId: string,
   ) {
     return this.teamService.revokeInvitation({
-      organizationId: req.organization.id,
+      organizationId: organization.id,
       invitationId,
       actorUserId: user.userId,
-      actorRole: req.membership.role,
+      actorRole: membership.role,
     });
   }
 
   @Patch("members/:membershipId")
   @Roles("OWNER")
   updateMemberRole(
-    @Req() req: any,
-    @CurrentUser() user: { userId: string },
+    @CurrentOrg() organization: RequestOrganization,
+    @CurrentUser() user: AuthenticatedUser,
     @Param("membershipId") membershipId: string,
     @Body() dto: UpdateMembershipRoleDto,
   ) {
     return this.teamService.updateMembershipRole({
-      organizationId: req.organization.id,
+      organizationId: organization.id,
       actorUserId: user.userId,
       membershipId,
       role: dto.role,
@@ -90,12 +98,12 @@ export class TeamController {
   @Delete("members/:membershipId")
   @Roles("OWNER")
   removeMember(
-    @Req() req: any,
-    @CurrentUser() user: { userId: string },
+    @CurrentOrg() organization: RequestOrganization,
+    @CurrentUser() user: AuthenticatedUser,
     @Param("membershipId") membershipId: string,
   ) {
     return this.teamService.removeMember({
-      organizationId: req.organization.id,
+      organizationId: organization.id,
       actorUserId: user.userId,
       membershipId,
     });

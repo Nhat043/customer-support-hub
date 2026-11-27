@@ -1,7 +1,7 @@
 import * as bcrypt from "bcryptjs";
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
-import { PrismaClient } from "../../../node_modules/.prisma/client";
+import { PrismaClient } from "./prisma.types";
 
 if (existsSync("../../.env")) {
   loadEnvFile("../../.env");

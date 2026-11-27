@@ -98,10 +98,7 @@ test("refresh rotates cookies and returns the new access token", async () => {
   );
   const res = response();
 
-  const body = await controller.refresh(
-    { cookies: { sessionId: "session-1", refreshToken: "refresh-1" } },
-    res as never,
-  );
+  const body = await controller.refresh("refresh-1", "session-1", res as never);
 
   assert.equal(body.accessToken, "session-1-refresh-1-access");
   assert.deepEqual(

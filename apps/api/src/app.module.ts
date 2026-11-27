@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule, RequestMethod } from "@nestjs/c
 import { ConfigModule } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { PrismaModule } from "./infrastructure/prisma/prisma.module";
+import { TenantAccessModule } from "./common/security/tenant-access.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
 import { OrganizationsModule } from "./modules/organizations/organizations.module";
@@ -28,6 +29,7 @@ import { RealtimeModule } from "./infrastructure/realtime/realtime.module";
     }),
     JwtModule.register({}),
     PrismaModule,
+    TenantAccessModule,
     RealtimeModule,
     ObservabilityModule,
     AuthModule,
