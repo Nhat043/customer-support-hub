@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Post,
-  Req,
   Res,
   UnauthorizedException,
   UseGuards,
@@ -11,6 +10,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import type { Response } from "express";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { Cookie } from "../../common/decorators/cookie.decorator";
+import type { AuthenticatedUser } from "../../common/types/request-context";
 import { Public } from "../../common/decorators/public.decorator";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { AuthRateLimitGuard } from "../../common/guards/auth-rate-limit.guard";
@@ -94,9 +95,11 @@ export class AuthController {
   @Public()
   @UseGuards(AuthRateLimitGuard, CsrfGuard)
   @Post("refresh")
-  async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = req.cookies?.refreshToken as string | undefined;
-    const sessionId = req.cookies?.sessionId as string | undefined;
+  async refresh(
+    @Cookie("refreshToken") refreshToken: string | undefined,
+    @Cookie("sessionId") sessionId: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     if (!refreshToken || !sessionId) {
       throw new UnauthorizedException("Missing session cookie");
     }
@@ -114,7 +117,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @Post("logout")
   async logout(
-    @CurrentUser() user: { sessionId: string },
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.logout(user.sessionId);
@@ -125,7 +128,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @Post("logout-all")
   async logoutAll(
-    @CurrentUser() user: { userId: string },
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.logoutAll(user.userId);
@@ -136,7 +139,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @Post("deactivate")
   async deactivate(
-    @CurrentUser() user: { userId: string },
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.deactivateUser(user.userId);
@@ -146,7 +149,7 @@ export class AuthController {
 
   @UseGuards(JwtGuard)
   @Get("me")
-  async me(@CurrentUser() user: { userId: string }) {
+  async me(@CurrentUser() user: AuthenticatedUser) {
     const result = await this.authService.me(user.userId);
     return { user: result };
   }

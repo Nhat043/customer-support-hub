@@ -1,10 +1,14 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Req, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from "@nestjs/swagger";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { JwtGuard } from "../../common/guards/jwt.guard";
 import { OrgGuard } from "../../common/guards/org.guard";
 import { RolesGuard } from "../../common/guards/roles.guard";
+import { CurrentOrg } from "../../common/decorators/current-org.decorator";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import { ActiveWorkspaceId } from "../../common/decorators/active-workspace.decorator";
+import type { AuthenticatedUser, RequestOrganization } from "../../common/types/request-context";
 import { UploadKnowledgeDocumentDto } from "./dto/knowledge.dto";
 import { KnowledgeDocumentExtractor, MAX_KNOWLEDGE_FILE_BYTES, UploadedKnowledgeFile } from "./knowledge-document-extractor";
 import { WorkspaceKnowledgeService } from "./knowledge.service";
@@ -20,13 +24,17 @@ export class KnowledgeController {
   ) {}
 
   @Get()
-  list(@Req() req: any) {
-    return this.knowledge.list(req.organization.id, req.session?.workspaceId);
+  list(@CurrentOrg() organization: RequestOrganization, @ActiveWorkspaceId() workspaceId: string | null) {
+    return this.knowledge.list(organization.id, workspaceId);
   }
 
   @Get(":documentId")
-  getDocument(@Req() req: any, @Param("documentId") documentId: string) {
-    return this.knowledge.getDocument(req.organization.id, req.session?.workspaceId, documentId);
+  getDocument(
+    @CurrentOrg() organization: RequestOrganization,
+    @ActiveWorkspaceId() workspaceId: string | null,
+    @Param("documentId") documentId: string
+  ) {
+    return this.knowledge.getDocument(organization.id, workspaceId, documentId);
   }
 
   @Post()
@@ -43,10 +51,16 @@ export class KnowledgeController {
       }
     }
   })
-  async upload(@Req() req: any, @UploadedFile() file: UploadedKnowledgeFile | undefined, @Body() dto: UploadKnowledgeDocumentDto) {
+  async upload(
+    @CurrentOrg() organization: RequestOrganization,
+    @CurrentUser() user: AuthenticatedUser,
+    @ActiveWorkspaceId() workspaceId: string | null,
+    @UploadedFile() file: UploadedKnowledgeFile | undefined,
+    @Body() dto: UploadKnowledgeDocumentDto
+  ) {
     if (!file) throw new BadRequestException("Knowledge document file is required");
     const extracted = await this.documentExtractor.extract(file);
-    return this.knowledge.upload(req.organization.id, req.session?.workspaceId, req.user.userId, {
+    return this.knowledge.upload(organization.id, workspaceId, user.userId, {
       fileName: extracted.fileName,
       title: dto.title,
       content: extracted.content
@@ -55,13 +69,21 @@ export class KnowledgeController {
 
   @Post(":documentId/retry")
   @Roles("OWNER", "ADMIN")
-  retry(@Req() req: any, @Param("documentId") documentId: string) {
-    return this.knowledge.retry(req.organization.id, req.session?.workspaceId, documentId);
+  retry(
+    @CurrentOrg() organization: RequestOrganization,
+    @ActiveWorkspaceId() workspaceId: string | null,
+    @Param("documentId") documentId: string
+  ) {
+    return this.knowledge.retry(organization.id, workspaceId, documentId);
   }
 
   @Delete(":documentId")
   @Roles("OWNER", "ADMIN")
-  remove(@Req() req: any, @Param("documentId") documentId: string) {
-    return this.knowledge.remove(req.organization.id, req.session?.workspaceId, documentId);
+  remove(
+    @CurrentOrg() organization: RequestOrganization,
+    @ActiveWorkspaceId() workspaceId: string | null,
+    @Param("documentId") documentId: string
+  ) {
+    return this.knowledge.remove(organization.id, workspaceId, documentId);
   }
 }

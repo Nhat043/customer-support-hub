@@ -1,23 +1,22 @@
 import type {
-  Organization,
-  Membership,
-  Session,
-  User
-} from "../../../node_modules/.prisma/client";
+  AuthenticatedSession,
+  AuthenticatedUser,
+  RequestMembership,
+  RequestOrganization
+} from "./request-context";
 
 declare global {
   namespace Express {
     interface Request {
       requestId?: string;
-      user?: {
-        userId: string;
-        sessionId: string;
-        organizationId?: string;
-      };
-      organization?: Organization;
-      membership?: Membership;
-      authSession?: Session;
-      currentUser?: User;
+      /** Set by JwtGuard. */
+      user?: AuthenticatedUser;
+      /** Set by JwtGuard. */
+      session?: AuthenticatedSession;
+      /** Set by OrgGuard. */
+      organization?: RequestOrganization;
+      /** Set by OrgGuard. */
+      membership?: RequestMembership;
     }
   }
 }
