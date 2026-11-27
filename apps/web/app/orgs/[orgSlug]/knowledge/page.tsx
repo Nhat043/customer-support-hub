@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getSession } from "@/lib/auth";
+import { useSession } from "@/lib/use-session";
 
 type KnowledgeDocument = {
   id: string;
@@ -51,7 +52,8 @@ export default function KnowledgePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  const role = getSession()?.activeMembershipRole;
+  const { session: currentSession } = useSession();
+  const role = currentSession?.activeMembershipRole;
   const canManage = role === "OWNER" || role === "ADMIN";
 
   useEffect(() => {

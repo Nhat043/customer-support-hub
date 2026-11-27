@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { getSession, saveSession, type MembershipRole } from "@/lib/auth";
+import { useSession } from "@/lib/use-session";
 import { PublicHeader } from "@/components/public-header";
 
 type InvitationPreview = {
@@ -74,7 +75,7 @@ function JoinContent() {
     }
   }
 
-  const session = getSession();
+  const { session } = useSession();
   const query = token ? `?invitation=${encodeURIComponent(token)}` : "";
 
   return (

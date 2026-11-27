@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { API_BASE_URL, apiFetch } from "@/lib/api";
 import { getSession } from "@/lib/auth";
+import { useSession } from "@/lib/use-session";
 
 type WorkflowItem = {
   id: string;
@@ -239,8 +240,9 @@ export default function WorkflowItemDetailPage() {
     return <section className="card">{error ?? "Loading workflow item..."}</section>;
   }
 
-  const activeRole = getSession()?.activeMembershipRole ?? "";
-  const currentUserId = getSession()?.user.id;
+  const { session: currentSession } = useSession();
+  const activeRole = currentSession?.activeMembershipRole ?? "";
+  const currentUserId = currentSession?.user.id;
   const canUploadAttachments = ["OWNER", "ADMIN", "MEMBER"].includes(activeRole);
 
   return (
@@ -261,7 +263,7 @@ export default function WorkflowItemDetailPage() {
           </p>
         </section>
 
-        {(["OWNER", "ADMIN"].includes(getSession()?.activeMembershipRole ?? "")) ? (
+        {(["OWNER", "ADMIN"].includes(activeRole)) ? (
           <section className="card">
             <h3>Assignment and SLA</h3>
             <p className="muted">Assign an active teammate and set the deadline this request should meet.</p>

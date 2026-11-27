@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { getSession, type MembershipRole } from "@/lib/auth";
+import { type MembershipRole } from "@/lib/auth";
+import { useSession } from "@/lib/use-session";
 
 type TeamMember = {
   id: string;
@@ -32,7 +33,7 @@ function readableRole(role: MembershipRole) {
 export default function TeamPage() {
   const params = useParams<{ orgSlug: string }>();
   const orgSlug = params.orgSlug;
-  const session = getSession();
+  const { session, ready: sessionReady } = useSession();
   const role = session?.activeMembershipRole;
   const isOwner = role === "OWNER";
   const canManage = isOwner || role === "ADMIN";
@@ -64,7 +65,8 @@ export default function TeamPage() {
 
   useEffect(() => {
     void load();
-  }, [orgSlug]);
+    // `session` is read after mount, so the first run has nothing to load with.
+  }, [orgSlug, session]);
 
   async function invite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -144,6 +146,12 @@ export default function TeamPage() {
     } catch (revokeError) {
       setError(revokeError instanceof Error ? revokeError.message : "Could not revoke this invitation.");
     }
+  }
+
+  // Hold the refusal back until the stored session has actually been read,
+  // otherwise an owner is told they lack permission on every full page load.
+  if (!sessionReady) {
+    return null;
   }
 
   if (!canManage) {
