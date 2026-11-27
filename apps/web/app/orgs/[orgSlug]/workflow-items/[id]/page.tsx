@@ -58,6 +58,9 @@ type Comment = {
 
 export default function WorkflowItemDetailPage() {
   const params = useParams<{ orgSlug: string; id: string }>();
+  // Must stay above the `if (!item)` guard below: hooks cannot be called after
+  // a conditional return.
+  const { session: currentSession } = useSession();
   const [item, setItem] = useState<WorkflowItem | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -240,7 +243,6 @@ export default function WorkflowItemDetailPage() {
     return <section className="card">{error ?? "Loading workflow item..."}</section>;
   }
 
-  const { session: currentSession } = useSession();
   const activeRole = currentSession?.activeMembershipRole ?? "";
   const currentUserId = currentSession?.user.id;
   const canUploadAttachments = ["OWNER", "ADMIN", "MEMBER"].includes(activeRole);
