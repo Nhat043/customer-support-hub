@@ -11,7 +11,7 @@ import {
   RefreshTokenStatus,
   SessionStatus,
   UserStatus,
-} from "../../../node_modules/.prisma/client";
+} from "../../infrastructure/prisma/prisma.types";
 import * as bcrypt from "bcryptjs";
 import { randomUUID, randomBytes, randomInt, createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { PrismaService } from "../../infrastructure/prisma/prisma.service";
